@@ -22,6 +22,7 @@ import { demandesService } from '../../services/demandesService';
 import { validationsService } from '../../services/validationsService';
 import { documentsService } from '../../services/documentsService';
 import { uploadService } from '../../services/uploadService';
+import { referentielsService } from '../../services/referentielsService';
 import DescriptionIcon from '@mui/icons-material/Description';
 import DownloadIcon from '@mui/icons-material/Download';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -71,6 +72,8 @@ export default function DetailDemande() {
   const [commentaireValidation, setCommentaireValidation] = useState('');
   const [validationDecision, setValidationDecision] = useState('VALIDE');
   const [loadingValidation, setLoadingValidation] = useState(false);
+  const [directionLibelle, setDirectionLibelle] = useState(null);
+  const [serviceLibelle, setServiceLibelle] = useState(null);
 
   // Déterminer le rôle et le chemin de retour depuis l'URL
   const getRoleFromPath = () => {
@@ -93,10 +96,12 @@ export default function DetailDemande() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [demandeRes, validationsRes, documentsRes] = await Promise.all([
+        const [demandeRes, validationsRes, documentsRes, directionsRes, servicesRes] = await Promise.all([
           demandesService.getById(id),
           validationsService.getByDemande(id),
           documentsService.findByDemande(id),
+          referentielsService.getDirections(),
+          referentielsService.getServices(),
         ]);
         setDemande(demandeRes.data);
         // S'assurer que validations est un tableau
@@ -104,12 +109,67 @@ export default function DetailDemande() {
         setValidations(validationsData);
         setDocuments(documentsRes.data);
         
+        // Récupérer les libellés de direction et service
+        const demande = demandeRes.data;
+        const directions = directionsRes.data || [];
+        const services = servicesRes.data || [];
+        
+        // Trouver le libellé de la direction
+        if (demande.informationsAgent?.directionId) {
+          const dirId = typeof demande.informationsAgent.directionId === 'object' 
+            ? demande.informationsAgent.directionId._id || demande.informationsAgent.directionId
+            : demande.informationsAgent.directionId;
+          const direction = directions.find(d => String(d._id) === String(dirId));
+          if (direction) {
+            setDirectionLibelle(direction.libelle);
+          }
+        } else if (demande.agentId?.serviceId?.directionId) {
+          const dirId = typeof demande.agentId.serviceId.directionId === 'object'
+            ? demande.agentId.serviceId.directionId._id || demande.agentId.serviceId.directionId
+            : demande.agentId.serviceId.directionId;
+          const direction = directions.find(d => String(d._id) === String(dirId));
+          if (direction) {
+            setDirectionLibelle(direction.libelle);
+          }
+        }
+        
+        // Trouver le libellé du service
+        if (demande.informationsAgent?.serviceId) {
+          const servId = typeof demande.informationsAgent.serviceId === 'object'
+            ? demande.informationsAgent.serviceId._id || demande.informationsAgent.serviceId
+            : demande.informationsAgent.serviceId;
+          const service = services.find(s => String(s._id) === String(servId));
+          if (service) {
+            setServiceLibelle(service.libelle);
+          }
+        } else if (demande.agentId?.serviceId) {
+          const servId = typeof demande.agentId.serviceId === 'object'
+            ? demande.agentId.serviceId._id || demande.agentId.serviceId
+            : demande.agentId.serviceId;
+          const service = services.find(s => String(s._id) === String(servId));
+          if (service) {
+            setServiceLibelle(service.libelle);
+          }
+        }
+        
         // Debug pour vérifier les validations
         if (validationsData.length > 0) {
           console.log('Validations récupérées:', validationsData);
           validationsData.forEach(v => {
             console.log(`Validation - Role: ${v.validateurRole}, Decision: ${v.decision}, Date: ${v.dateValidation}`);
           });
+        }
+        
+        // Debug pour les informations familiales
+        console.log('Demande complète:', demande);
+        console.log('InformationsAgent:', demande.informationsAgent);
+        if (demande.informationsAgent) {
+          console.log('Conjoints:', demande.informationsAgent.conjoints);
+          console.log('Enfants:', demande.informationsAgent.enfants);
+        }
+        if (demande.agentId && typeof demande.agentId === 'object') {
+          console.log('Agent conjoints:', demande.agentId.conjoints);
+          console.log('Agent enfants:', demande.agentId.enfants);
         }
       } catch (error) {
         console.error('Erreur lors du chargement', error);
@@ -200,6 +260,14 @@ export default function DetailDemande() {
   let agentPrenom = '';
   let agentMatricule = null;
   let agentPhoto = null;
+  let agentNomMariage = null;
+  let agentAdresseVille = null;
+  let agentSexe = null;
+  let agentEmail = null;
+  let agentConjoints = [];
+  let agentEnfants = [];
+  let agentDirectionId = null;
+  let agentServiceId = null;
   
   if (agent && typeof agent === 'object' && agent !== null) {
     // Agent connecté (agentId populé)
@@ -207,13 +275,78 @@ export default function DetailDemande() {
     agentPrenom = agent.prenom || '';
     agentMatricule = agent.matricule;
     agentPhoto = agent.photo;
-  } else if (demande.informationsAgent) {
-    // Demande publique (informationsAgent)
-    agentNom = demande.informationsAgent.nom || '';
-    agentPrenom = demande.informationsAgent.prenom || '';
-    agentMatricule = demande.informationsAgent.matricule;
-    agentPhoto = demande.informationsAgent.photo;
+    agentNomMariage = agent.nomMariage;
+    agentAdresseVille = agent.adresseVille;
+    agentSexe = agent.sexe;
+    // Extraire les conjoints et enfants - vérifier si c'est un tableau
+    agentConjoints = Array.isArray(agent.conjoints) ? agent.conjoints : (agent.conjoints ? [agent.conjoints] : []);
+    agentEnfants = Array.isArray(agent.enfants) ? agent.enfants : (agent.enfants ? [agent.enfants] : []);
+    // Pour l'agent connecté, direction et service sont dans serviceId
+    if (agent.serviceId) {
+      const service = typeof agent.serviceId === 'object' ? agent.serviceId : null;
+      if (service) {
+        agentServiceId = service._id || service;
+        if (service.directionId) {
+          const direction = typeof service.directionId === 'object' ? service.directionId : null;
+          agentDirectionId = direction?._id || direction || service.directionId;
+        }
+      }
+    }
   }
+  
+  // Toujours vérifier informationsAgent pour les demandes publiques ou si les données ne sont pas dans agent
+  if (demande.informationsAgent) {
+    // Si les données de base ne sont pas déjà définies, les prendre depuis informationsAgent
+    if (!agentNom || agentNom === '-') {
+      agentNom = demande.informationsAgent.nom || '';
+    }
+    if (!agentPrenom) {
+      agentPrenom = demande.informationsAgent.prenom || '';
+    }
+    if (!agentMatricule) {
+      agentMatricule = demande.informationsAgent.matricule;
+    }
+    if (!agentPhoto) {
+      agentPhoto = demande.informationsAgent.photo;
+    }
+    if (!agentNomMariage) {
+      agentNomMariage = demande.informationsAgent.nomMariage;
+    }
+    if (!agentAdresseVille) {
+      agentAdresseVille = demande.informationsAgent.adresseVille;
+    }
+    if (!agentSexe) {
+      agentSexe = demande.informationsAgent.sexe;
+    }
+    if (!agentEmail) {
+      agentEmail = demande.informationsAgent.email;
+    }
+    // Extraire les conjoints et enfants depuis informationsAgent
+    const conjointsFromInfo = Array.isArray(demande.informationsAgent.conjoints) 
+      ? demande.informationsAgent.conjoints 
+      : (demande.informationsAgent.conjoints ? [demande.informationsAgent.conjoints] : []);
+    const enfantsFromInfo = Array.isArray(demande.informationsAgent.enfants)
+      ? demande.informationsAgent.enfants
+      : (demande.informationsAgent.enfants ? [demande.informationsAgent.enfants] : []);
+    
+    // Utiliser les données de informationsAgent si elles existent, sinon garder celles de agent
+    if (conjointsFromInfo.length > 0) {
+      agentConjoints = conjointsFromInfo;
+    }
+    if (enfantsFromInfo.length > 0) {
+      agentEnfants = enfantsFromInfo;
+    }
+    
+    if (!agentDirectionId) {
+      agentDirectionId = demande.informationsAgent.directionId;
+    }
+    if (!agentServiceId) {
+      agentServiceId = demande.informationsAgent.serviceId;
+    }
+  }
+  
+  // Debug pour vérifier les données extraites
+  console.log('Données extraites - Conjoints:', agentConjoints, 'Enfants:', agentEnfants);
   
   const agentNomComplet = `${agentNom} ${agentPrenom}`.trim() || '-';
 
@@ -362,56 +495,151 @@ export default function DetailDemande() {
                   {demande.type === 'SIMPLE' ? 'Simple' : 'Stratégique'}
                 </Typography>
               </Grid>
-              {role !== 'agent' && (
-                <>
-                  {agentPhoto && (
-                    <Grid item xs={12}>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                        Photo
-                      </Typography>
-                      <Box
-                        component="img"
-                        src={uploadService.getFile(agentPhoto)}
-                        alt={`${agentNom} ${agentPrenom}`}
-                        sx={{
-                          width: 150,
-                          height: 150,
-                          objectFit: 'cover',
-                          borderRadius: 2,
-                          border: '2px solid',
-                          borderColor: 'divider',
-                          boxShadow: 2,
-                        }}
-                      />
-                    </Grid>
-                  )}
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      Nom
-                    </Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                      {agentNom || '-'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      Prénom
-                    </Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                      {agentPrenom || '-'}
-                    </Typography>
-                  </Grid>
-                  {agentMatricule && (
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" color="text.secondary">
-                        Matricule
-                      </Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
-                        {agentMatricule}
-                      </Typography>
-                    </Grid>
-                  )}
-                </>
+              {agentPhoto && (
+                <Grid item xs={12}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Photo
+                  </Typography>
+                  <Box
+                    component="img"
+                    src={uploadService.getFile(agentPhoto)}
+                    alt={`${agentNom} ${agentPrenom}`}
+                    sx={{
+                      width: 150,
+                      height: 150,
+                      objectFit: 'cover',
+                      borderRadius: 2,
+                      border: '2px solid',
+                      borderColor: 'divider',
+                      boxShadow: 2,
+                    }}
+                  />
+                </Grid>
+              )}
+              <Grid item xs={12} sm={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Nom
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                  {agentNom || '-'}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Prénom
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                  {agentPrenom || '-'}
+                </Typography>
+              </Grid>
+              {agentMatricule && (
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Matricule
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
+                    {agentMatricule}
+                  </Typography>
+                </Grid>
+              )}
+              {agentNomMariage && (
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Nom de mariage
+                  </Typography>
+                  <Typography variant="body1">
+                    {agentNomMariage}
+                  </Typography>
+                </Grid>
+              )}
+              {agentAdresseVille && (
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Adresse ville
+                  </Typography>
+                  <Typography variant="body1">
+                    {agentAdresseVille}
+                  </Typography>
+                </Grid>
+              )}
+              {agentSexe && (
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Sexe
+                  </Typography>
+                  <Typography variant="body1">
+                    {agentSexe === 'M' ? 'Masculin' : agentSexe === 'F' ? 'Féminin' : agentSexe}
+                  </Typography>
+                </Grid>
+              )}
+              {agentEmail && (
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Email
+                  </Typography>
+                  <Typography variant="body1">
+                    {agentEmail}
+                  </Typography>
+                </Grid>
+              )}
+              {agentDirectionId && (
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Direction
+                  </Typography>
+                  <Typography variant="body1">
+                    {(() => {
+                      // Priorité 1: Vérifier si directionId est un objet populé avec libelle
+                      if (demande.informationsAgent?.directionId && typeof demande.informationsAgent.directionId === 'object' && demande.informationsAgent.directionId.libelle) {
+                        return demande.informationsAgent.directionId.libelle;
+                      }
+                      // Priorité 2: Vérifier si c'est dans agent.serviceId.directionId (agent connecté)
+                      if (agent && typeof agent === 'object' && agent.serviceId) {
+                        const service = typeof agent.serviceId === 'object' ? agent.serviceId : null;
+                        if (service?.directionId) {
+                          const direction = typeof service.directionId === 'object' ? service.directionId : null;
+                          if (direction?.libelle) {
+                            return direction.libelle;
+                          }
+                        }
+                      }
+                      // Priorité 3: Utiliser le libellé récupéré depuis l'API
+                      if (directionLibelle) {
+                        return directionLibelle;
+                      }
+                      // Dernière option: afficher l'ID (ne devrait pas arriver normalement)
+                      return agentDirectionId;
+                    })()}
+                  </Typography>
+                </Grid>
+              )}
+              {agentServiceId && (
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Service
+                  </Typography>
+                  <Typography variant="body1">
+                    {(() => {
+                      // Priorité 1: Vérifier si serviceId est un objet populé avec libelle
+                      if (demande.informationsAgent?.serviceId && typeof demande.informationsAgent.serviceId === 'object' && demande.informationsAgent.serviceId.libelle) {
+                        return demande.informationsAgent.serviceId.libelle;
+                      }
+                      // Priorité 2: Vérifier si c'est dans agent.serviceId (agent connecté)
+                      if (agent && typeof agent === 'object' && agent.serviceId) {
+                        const service = typeof agent.serviceId === 'object' ? agent.serviceId : null;
+                        if (service?.libelle) {
+                          return service.libelle;
+                        }
+                      }
+                      // Priorité 3: Utiliser le libellé récupéré depuis l'API
+                      if (serviceLibelle) {
+                        return serviceLibelle;
+                      }
+                      // Dernière option: afficher l'ID (ne devrait pas arriver normalement)
+                      return agentServiceId;
+                    })()}
+                  </Typography>
+                </Grid>
               )}
               <Grid item xs={12}>
                 <Typography variant="body2" color="text.secondary">
@@ -471,6 +699,56 @@ export default function DetailDemande() {
               )}
             </Grid>
           </Paper>
+
+          {/* Section Informations familiales */}
+          {((Array.isArray(agentConjoints) && agentConjoints.length > 0) || (Array.isArray(agentEnfants) && agentEnfants.length > 0)) && (
+            <Paper sx={{ p: 3, mb: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Informations familiales
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              {Array.isArray(agentConjoints) && agentConjoints.length > 0 && (
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Conjoints ({agentConjoints.length})
+                  </Typography>
+                  <List dense>
+                    {agentConjoints.map((conjoint, index) => {
+                      if (!conjoint || (typeof conjoint !== 'object')) return null;
+                      return (
+                        <ListItem key={index} sx={{ pl: 0 }}>
+                          <ListItemText
+                            primary={`${conjoint.nom || ''} ${conjoint.prenom || ''}`.trim() || 'Nom non renseigné'}
+                            secondary={conjoint.code ? `Code: ${conjoint.code}` : 'Sans code'}
+                          />
+                        </ListItem>
+                      );
+                    })}
+                  </List>
+                </Box>
+              )}
+              {Array.isArray(agentEnfants) && agentEnfants.length > 0 && (
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Enfants ({agentEnfants.length})
+                  </Typography>
+                  <List dense>
+                    {agentEnfants.map((enfant, index) => {
+                      if (!enfant || (typeof enfant !== 'object')) return null;
+                      return (
+                        <ListItem key={index} sx={{ pl: 0 }}>
+                          <ListItemText
+                            primary={`${enfant.nom || ''} ${enfant.prenom || ''}`.trim() || 'Nom non renseigné'}
+                            secondary={enfant.code ? `Code: ${enfant.code}` : 'Sans code'}
+                          />
+                        </ListItem>
+                      );
+                    })}
+                  </List>
+                </Box>
+              )}
+            </Paper>
+          )}
 
           <Paper sx={{ p: 3, mb: 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
