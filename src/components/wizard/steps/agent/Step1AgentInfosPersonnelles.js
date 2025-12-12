@@ -92,6 +92,22 @@ export default function Step1AgentInfosPersonnelles({
               startAdornment: <InputAdornment position="start">+229</InputAdornment>,
             }}
           />
+          <TextField
+            fullWidth
+            label="IFU (Identifiant Fiscal Unique)"
+            value={formData.ifu || ''}
+            onChange={(e) => setFormData({ ...formData, ifu: e.target.value })}
+            margin="normal"
+            helperText="Identifiant fiscal unique de l'agent"
+          />
+          <TextField
+            fullWidth
+            label="NPI (Numéro Personnel d'Identification)"
+            value={formData.npi || ''}
+            onChange={(e) => setFormData({ ...formData, npi: e.target.value })}
+            margin="normal"
+            helperText="Numéro personnel d'identification de l'agent"
+          />
           
           {/* Photo */}
           <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
