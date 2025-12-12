@@ -28,6 +28,18 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      // Ne pas déconnecter si c'est une erreur de validation (comme email dupliqué)
+      // Les erreurs de validation ont généralement un message spécifique
+      const errorMessage = error.response?.data?.message || '';
+      const isValidationError = errorMessage.includes('déjà utilisé') || 
+                                errorMessage.includes('existe déjà') ||
+                                errorMessage.includes('already exists');
+      
+      if (isValidationError) {
+        // C'est une erreur de validation, ne pas déconnecter
+        return Promise.reject(error);
+      }
+      
       // Ne pas rediriger si on est sur une page publique ou d'authentification
       const publicPaths = ['/', '/demande', '/suivi', '/auth/login', '/auth/register'];
       const currentPath = window.location.pathname;
@@ -38,6 +50,8 @@ api.interceptors.response.use(
         window.location.href = '/auth/login';
       }
     }
+    // Ne pas rediriger automatiquement pour les erreurs 403 (Forbidden)
+    // Laisser les composants gérer ces erreurs
     return Promise.reject(error);
   }
 );

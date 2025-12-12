@@ -18,6 +18,8 @@ import {
   MenuItem,
   InputAdornment,
   Alert,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -52,6 +54,15 @@ const getStatusLabel = (status) => {
   return labels[status] || status;
 };
 
+// Composant TabPanel pour les onglets
+function TabPanel({ children, value, index }) {
+  return (
+    <div hidden={value !== index}>
+      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
+    </div>
+  );
+}
+
 export default function DGRDemandes() {
   const { user } = useAuth();
   const { success, error, warning } = useToast();
@@ -66,40 +77,129 @@ export default function DGRDemandes() {
   });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  
+  // Gérer les rôles multiples et les onglets
+  const userRoles = user?.roles && Array.isArray(user.roles) && user.roles.length > 0
+    ? user.roles
+    : user?.role
+      ? [user.role]
+      : [];
+  
+  // Déterminer les rôles disponibles pour validation
+  const rolesDisponibles = userRoles.filter(role => 
+    ['RESPONSABLE', 'DGR', 'CVR', 'DNCF'].includes(role)
+  );
+  
+  // Onglet actif (0 = premier rôle)
+  // Si l'utilisateur a DGR, commencer par DGR, sinon par le premier rôle
+  const initialTab = rolesDisponibles.includes('DGR') 
+    ? rolesDisponibles.indexOf('DGR')
+    : 0;
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const roleActif = rolesDisponibles[activeTab] || rolesDisponibles[0] || 'DGR';
+  
+  // Debug: log pour voir le rôle actif
+  useEffect(() => {
+    console.log('🔍 Rôle actif changé:', {
+      roleActif,
+      activeTab,
+      rolesDisponibles,
+      userRoles,
+    });
+  }, [roleActif, activeTab, rolesDisponibles, userRoles]);
+  
+  // Labels des rôles
+  const roleLabels = {
+    RESPONSABLE: 'Responsable hiérarchique',
+    DGR: 'DGR',
+    CVR: 'CVR',
+    DNCF: 'DNCF',
+  };
 
   useEffect(() => {
     const fetchDemandes = async () => {
-      if (!user) return; // Attendre que l'utilisateur soit chargé
+      if (!user || rolesDisponibles.length === 0) return; // Attendre que l'utilisateur soit chargé
+      
+      console.log('📥 fetchDemandes appelé avec roleActif:', roleActif);
       
       try {
-        // Récupérer les demandes et les validations en parallèle
-        const [demandesRes, validationsRes] = await Promise.all([
-          demandesService.getAll(),
-          validationsService.getAll(),
-        ]);
+        let demandesRes, validationsRes;
         
-        // Filtrer les demandes qui sont en attente d'étude DGR
-        const demandesFiltrees = demandesRes.data.filter(
-          (d) =>
-            d.statut === 'VALIDEE_HIERARCHIQUE' ||
-            d.statut === 'EN_ETUDE_DGR' ||
-            d.statut === 'EN_VERIFICATION_CVR' // Même si rejetée, la demande continue
-        );
+        // Pour RESPONSABLE, utiliser l'endpoint spécialisé qui filtre par service
+        if (roleActif === 'RESPONSABLE') {
+          console.log('📞 Appel getDemandesPourResponsable()');
+          [demandesRes, validationsRes] = await Promise.all([
+            demandesService.getDemandesPourResponsable(),
+            validationsService.getAll(),
+          ]);
+        } else {
+          // Pour DGR, CVR, DNCF, récupérer toutes les demandes
+          console.log('📞 Appel demandesService.getAll() pour rôle:', roleActif);
+          [demandesRes, validationsRes] = await Promise.all([
+            demandesService.getAll(),
+            validationsService.getAll(),
+          ]);
+        }
         
-        // Filtrer les validations du DGR connecté avec le rôle DGR
-        const validationsDGR = validationsRes.data.filter(v => {
-          const validateurId = v.validateurId?._id || v.validateurId;
-          const userId = user?._id || user?.id;
-          const roleMatch = v.validateurRole && String(v.validateurRole).toUpperCase() === 'DGR';
-          return roleMatch && (validateurId === userId || String(validateurId) === String(userId));
+        console.log('📊 Demandes récupérées:', {
+          total: demandesRes.data?.length || 0,
+          roleActif,
+          premieresDemandes: demandesRes.data?.slice(0, 3).map(d => ({ id: d._id, statut: d.statut }))
         });
         
-        // Créer un Set des IDs des demandes déjà traitées par ce DGR
-        const demandesTraiteesIds = new Set(
-          validationsDGR.map(v => String(v.demandeId?._id || v.demandeId))
+        // Filtrer les demandes selon le rôle actif
+        let demandesFiltrees = [];
+        if (roleActif === 'RESPONSABLE') {
+          const demandesDeMonService = demandesRes.data || [];
+          demandesFiltrees = demandesDeMonService.filter(
+            (d) =>
+              d.statut === 'EN_VALIDATION_HIERARCHIQUE' ||
+              d.statut === 'EN_ETUDE_DGR'
+          );
+        } else if (roleActif === 'DGR') {
+          demandesFiltrees = demandesRes.data.filter(
+            (d) =>
+              d.statut === 'VALIDEE_HIERARCHIQUE' ||
+              d.statut === 'EN_ETUDE_DGR' ||
+              d.statut === 'EN_VERIFICATION_CVR'
+          );
+        } else if (roleActif === 'CVR') {
+          demandesFiltrees = demandesRes.data.filter(
+            (d) =>
+              d.statut === 'AVIS_DGR_FAVORABLE' ||
+              d.statut === 'EN_VERIFICATION_CVR' ||
+              d.statut === 'VALIDEE_CVR'
+          );
+        } else if (roleActif === 'DNCF') {
+          demandesFiltrees = demandesRes.data.filter(
+            (d) =>
+              d.statut === 'VALIDEE_CVR' ||
+              d.statut === 'EN_ETUDE_DNCF' ||
+              d.statut === 'ACCEPTEE' ||
+              d.statut === 'REJETEE'
+          );
+        }
+        
+        // Debug: afficher les statuts des demandes filtrées
+        console.log('📋 Demandes avec statuts EN_ETUDE_DGR/VALIDEE_HIERARCHIQUE:', 
+          demandesFiltrees.map(d => ({ id: d._id, statut: d.statut, agent: d.agentId?.nom || d.informationsAgent?.nom }))
         );
         
-        // Filtrer pour ne garder que les demandes non encore traitées par ce DGR
+        // Filtrer les validations de l'utilisateur connecté avec le rôle actif uniquement
+        const validationsRoleActif = validationsRes.data.filter(v => {
+          const validateurId = v.validateurId?._id || v.validateurId;
+          const userId = user?._id || user?.id;
+          const roleMatch = v.validateurRole && String(v.validateurRole).toUpperCase() === roleActif.toUpperCase();
+          const userIdMatch = validateurId === userId || String(validateurId) === String(userId);
+          return roleMatch && userIdMatch;
+        });
+        
+        // Créer un Set des IDs des demandes déjà traitées avec le rôle actif
+        const demandesTraiteesIds = new Set(
+          validationsRoleActif.map(v => String(v.demandeId?._id || v.demandeId))
+        );
+        
+        // Filtrer pour ne garder que les demandes non encore traitées avec ce rôle
         const demandesNonTraitees = demandesFiltrees.filter(
           (d) => !demandesTraiteesIds.has(String(d._id))
         );
@@ -113,7 +213,7 @@ export default function DGRDemandes() {
     fetchDemandes();
     const interval = setInterval(fetchDemandes, 30000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user, roleActif, rolesDisponibles]);
 
   useEffect(() => {
     if (!searchTerm.trim()) {
@@ -134,9 +234,19 @@ export default function DGRDemandes() {
       const poste = typeof demande.posteSouhaiteId === 'object' && demande.posteSouhaiteId !== null
         ? (demande.posteSouhaiteId.intitule || '').toLowerCase()
         : '';
-      const localisation = typeof demande.localisationSouhaiteId === 'object' && demande.localisationSouhaiteId !== null
-        ? (demande.localisationSouhaiteId.libelle || '').toLowerCase()
-        : '';
+      // Gérer les localisations multiples (nouveau) ou unique (ancien pour compatibilité)
+      const localisations = demande.localisationsSouhaitees || (demande.localisationSouhaiteId ? [demande.localisationSouhaiteId] : []);
+      const localisationsLibelles = Array.isArray(localisations)
+        ? localisations
+            .map((loc) => {
+              if (typeof loc === 'object' && loc !== null) {
+                return loc.libelle || '';
+              }
+              return '';
+            })
+            .filter((lib) => lib !== '')
+        : [];
+      const localisation = localisationsLibelles.join(' ').toLowerCase();
       const statut = getStatusLabel(demande.statut).toLowerCase();
       const search = searchTerm.toLowerCase();
 
@@ -162,34 +272,53 @@ export default function DGRDemandes() {
         demandeId: selectedDemande._id,
         decision: formData.decision,
         commentaire: formData.commentaire,
-        validateurRole: 'DGR', // Spécifier le rôle du validateur
+        validateurRole: roleActif, // Utiliser le rôle actif (onglet sélectionné)
       });
       setOpen(false);
       setFormData({ decision: 'VALIDE', commentaire: '' });
       setSelectedDemande(null);
       
-      // Recharger avec le même filtre
-      const [demandesRes, validationsRes] = await Promise.all([
-        demandesService.getAll(),
-        validationsService.getAll(),
-      ]);
+      // Recharger avec le même filtre selon le rôle actif
+      let demandesRes, validationsRes;
+      if (roleActif === 'RESPONSABLE') {
+        [demandesRes, validationsRes] = await Promise.all([
+          demandesService.getDemandesPourResponsable(),
+          validationsService.getAll(),
+        ]);
+      } else {
+        [demandesRes, validationsRes] = await Promise.all([
+          demandesService.getAll(),
+          validationsService.getAll(),
+        ]);
+      }
       
-      const demandesFiltrees = demandesRes.data.filter(
-        (d) =>
-          d.statut === 'VALIDEE_HIERARCHIQUE' ||
-          d.statut === 'EN_ETUDE_DGR' ||
-          d.statut === 'EN_VERIFICATION_CVR'
-      );
+      // Appliquer le même filtrage que dans useEffect
+      let demandesFiltrees = [];
+      if (roleActif === 'RESPONSABLE') {
+        const demandesDeMonService = demandesRes.data || [];
+        demandesFiltrees = demandesDeMonService.filter(
+          (d) =>
+            d.statut === 'EN_VALIDATION_HIERARCHIQUE' ||
+            d.statut === 'EN_ETUDE_DGR'
+        );
+      } else if (roleActif === 'DGR') {
+        demandesFiltrees = demandesRes.data.filter(
+          (d) =>
+            d.statut === 'VALIDEE_HIERARCHIQUE' ||
+            d.statut === 'EN_ETUDE_DGR' ||
+            d.statut === 'EN_VERIFICATION_CVR'
+        );
+      }
       
-      const validationsDGR = validationsRes.data.filter(v => {
+      const validationsRoleActif = validationsRes.data.filter(v => {
         const validateurId = v.validateurId?._id || v.validateurId;
         const userId = user?._id || user?.id;
-        const roleMatch = v.validateurRole && String(v.validateurRole).toUpperCase() === 'DGR';
+        const roleMatch = v.validateurRole && String(v.validateurRole).toUpperCase() === roleActif.toUpperCase();
         return roleMatch && (validateurId === userId || String(validateurId) === String(userId));
       });
       
       const demandesTraiteesIds = new Set(
-        validationsDGR.map(v => String(v.demandeId?._id || v.demandeId))
+        validationsRoleActif.map(v => String(v.demandeId?._id || v.demandeId))
       );
       
       const demandesNonTraitees = demandesFiltrees.filter(
@@ -207,14 +336,61 @@ export default function DGRDemandes() {
     }
   };
 
+  // Debug: vérifier les rôles disponibles
+  useEffect(() => {
+    console.log('👤 Rôles utilisateur:', {
+      userRoles,
+      rolesDisponibles,
+      roleActif,
+      activeTab,
+      afficherOnglets: rolesDisponibles.length > 1
+    });
+  }, [userRoles, rolesDisponibles, roleActif, activeTab]);
+
   return (
     <Box>
       <PageHeader
-        title="Demandes à traiter"
-        subtitle="Examinez et donnez votre avis sur les demandes de mutation validées hiérarchiquement"
+        title={rolesDisponibles.length > 1 ? "Demandes à valider" : "Demandes à traiter"}
+        subtitle={rolesDisponibles.length > 1 
+          ? "Examinez et validez les demandes selon votre rôle" 
+          : "Examinez et donnez votre avis sur les demandes de mutation"}
       />
       
-      <Box sx={{ mb: 3, mt: 3 }}>
+      {/* Système d'onglets si plusieurs rôles */}
+      {rolesDisponibles.length > 1 ? (
+        <Paper sx={{ mb: 3, mt: 2 }}>
+          <Tabs 
+            value={activeTab} 
+            onChange={(e, newValue) => {
+              console.log('🔄 Changement d\'onglet:', { 
+                ancien: activeTab, 
+                nouveau: newValue, 
+                ancienRole: rolesDisponibles[activeTab],
+                nouveauRole: rolesDisponibles[newValue],
+                rolesDisponibles
+              });
+              setActiveTab(newValue);
+            }}
+            variant="fullWidth"
+            indicatorColor="primary"
+            textColor="primary"
+          >
+            {rolesDisponibles.map((role, index) => (
+              <Tab 
+                key={role} 
+                label={roleLabels[role] || role}
+                sx={{ textTransform: 'none', fontSize: '1rem' }}
+              />
+            ))}
+          </Tabs>
+        </Paper>
+      ) : (
+        <Alert severity="info" sx={{ mb: 3, mt: 2 }}>
+          Vous avez un seul rôle ({rolesDisponibles[0] || 'Aucun'}). Les onglets ne sont pas nécessaires.
+        </Alert>
+      )}
+      
+      <Box sx={{ mb: 3, mt: rolesDisponibles.length > 1 ? 0 : 3 }}>
         <TextField
           fullWidth
           variant="outlined"
@@ -237,8 +413,8 @@ export default function DGRDemandes() {
             <TableRow>
               <TableCell><strong>Agent</strong></TableCell>
               <TableCell><strong>Motif</strong></TableCell>
-              <TableCell><strong>Poste souhaité</strong></TableCell>
-              <TableCell><strong>Localisation souhaitée</strong></TableCell>
+              <TableCell><strong>Nouveau poste</strong></TableCell>
+              <TableCell><strong>Localisation(s) souhaitée(s)</strong></TableCell>
               <TableCell><strong>Statut</strong></TableCell>
               <TableCell><strong>Date de soumission</strong></TableCell>
               <TableCell><strong>Actions</strong></TableCell>
@@ -281,10 +457,19 @@ export default function DGRDemandes() {
                 ? poste.intitule
                 : '-';
               
-              const localisation = demande.localisationSouhaiteId;
-              const localisationLibelle = typeof localisation === 'object' && localisation !== null
-                ? localisation.libelle
-                : '-';
+              // Gérer les localisations multiples (nouveau) ou unique (ancien pour compatibilité)
+              const localisations = demande.localisationsSouhaitees || (demande.localisationSouhaiteId ? [demande.localisationSouhaiteId] : []);
+              const localisationsLibelles = Array.isArray(localisations)
+                ? localisations
+                    .map((loc) => {
+                      if (typeof loc === 'object' && loc !== null) {
+                        return loc.libelle || '-';
+                      }
+                      return '-';
+                    })
+                    .filter((lib) => lib !== '-')
+                : [];
+              const localisationLibelle = localisationsLibelles.length > 0 ? localisationsLibelles.join(', ') : '-';
 
               return (
               <TableRow key={demande._id}>
@@ -338,10 +523,8 @@ export default function DGRDemandes() {
                     >
                       Voir détails
                     </Button>
-                    {(demande.statut === 'VALIDEE_HIERARCHIQUE' ||
-                      demande.statut === 'EN_ETUDE_DGR' ||
-                      demande.statut === 'AVIS_DGR_FAVORABLE' ||
-                      demande.statut === 'AVIS_DGR_DEFAVORABLE') && (
+                    {((roleActif === 'RESPONSABLE' && (demande.statut === 'EN_VALIDATION_HIERARCHIQUE' || demande.statut === 'EN_ETUDE_DGR')) ||
+                      (roleActif === 'DGR' && (demande.statut === 'VALIDEE_HIERARCHIQUE' || demande.statut === 'EN_ETUDE_DGR' || demande.statut === 'AVIS_DGR_FAVORABLE' || demande.statut === 'AVIS_DGR_DEFAVORABLE'))) && (
                       <Button
                         size="small"
                         variant="contained"
@@ -351,7 +534,7 @@ export default function DGRDemandes() {
                           setOpen(true);
                         }}
                       >
-                        Traiter
+                        {roleActif === 'RESPONSABLE' ? 'Valider' : 'Traiter'}
                       </Button>
                     )}
                   </Box>
@@ -365,7 +548,9 @@ export default function DGRDemandes() {
       </TableContainer>
 
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Donner un avis sur la demande</DialogTitle>
+        <DialogTitle>
+          {roleActif === 'RESPONSABLE' ? 'Valider ou rejeter la demande' : 'Donner un avis sur la demande'}
+        </DialogTitle>
         <DialogContent>
           {selectedDemande && (() => {
             // Gérer les deux cas : agentId (connecté) ou informationsAgent (public)
@@ -432,7 +617,7 @@ export default function DGRDemandes() {
             startIcon={<CheckCircleIcon />}
             sx={{ mr: 1 }}
           >
-            Avis favorable
+            {roleActif === 'RESPONSABLE' ? 'Valider' : 'Avis favorable'}
           </Button>
           <Button
             onClick={() => {
@@ -444,7 +629,7 @@ export default function DGRDemandes() {
             disabled={!formData.commentaire.trim() || loading}
             startIcon={<CancelIcon />}
           >
-            Avis défavorable
+            {roleActif === 'RESPONSABLE' ? 'Rejeter' : 'Avis défavorable'}
           </Button>
         </DialogActions>
       </Dialog>

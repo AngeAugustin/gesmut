@@ -12,8 +12,7 @@ import DemandeWizard from '../../components/wizard/DemandeWizard';
 import Step1InformationsPersonnelles from '../../components/wizard/steps/Step1InformationsPersonnelles';
 import Step2Famille from '../../components/wizard/steps/Step2Famille';
 import Step3DetailsDemande from '../../components/wizard/steps/Step3DetailsDemande';
-import Step4PiecesJustificatives from '../../components/wizard/steps/Step4PiecesJustificatives';
-import Step5Recapitulatif from '../../components/wizard/steps/Step5Recapitulatif';
+import Step4Recapitulatif from '../../components/wizard/steps/Step5Recapitulatif';
 
 export default function NouvelleDemande() {
   const { user } = useAuth();
@@ -25,27 +24,25 @@ export default function NouvelleDemande() {
     matricule: '',
     nom: '',
     prenom: '',
-    nomMariage: '',
-    adresseVille: '',
     sexe: '',
     email: '',
+    telephone: '',
     photo: null,
     photoPreview: null,
     conjoints: [],
     enfants: [],
     motif: '',
     posteSouhaiteId: '',
-    localisationSouhaiteId: '',
+    localisationsSouhaitees: [],
     directionId: '',
     serviceId: '',
   });
-  const [conjointForm, setConjointForm] = useState({ code: '', nom: '', prenom: '' });
-  const [enfantForm, setEnfantForm] = useState({ code: '', nom: '', prenom: '' });
+  const [conjointForm, setConjointForm] = useState({ nom: '', prenom: '' });
+  const [enfantForm, setEnfantForm] = useState({ nom: '', prenom: '' });
   const [postes, setPostes] = useState([]);
   const [localites, setLocalites] = useState([]);
   const [directions, setDirections] = useState([]);
   const [services, setServices] = useState([]);
-  const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -63,8 +60,6 @@ export default function NouvelleDemande() {
               matricule: agentRes.data.matricule || '',
               nom: agentRes.data.nom || '',
               prenom: agentRes.data.prenom || '',
-              nomMariage: agentRes.data.nomMariage || '',
-              adresseVille: agentRes.data.adresseVille || '',
               sexe: agentRes.data.sexe || '',
               conjoints: agentRes.data.conjoints || [],
               enfants: agentRes.data.enfants || [],
@@ -94,11 +89,6 @@ export default function NouvelleDemande() {
     fetchData();
   }, [user]);
 
-  const handleFileChange = (e) => {
-    const selectedFiles = Array.from(e.target.files).slice(0, 4);
-    setFiles(selectedFiles);
-  };
-
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -118,17 +108,13 @@ export default function NouvelleDemande() {
     }
   };
 
-  const handleRemoveFile = (index) => {
-    setFiles(files.filter((_, i) => i !== index));
-  };
-
   const handleAddConjoint = () => {
     if (conjointForm.nom && conjointForm.prenom) {
       setFormData((prev) => ({
         ...prev,
         conjoints: [...prev.conjoints, { ...conjointForm }],
       }));
-      setConjointForm({ code: '', nom: '', prenom: '' });
+      setConjointForm({ nom: '', prenom: '' });
     }
   };
 
@@ -145,7 +131,7 @@ export default function NouvelleDemande() {
         ...prev,
         enfants: [...prev.enfants, { ...enfantForm }],
       }));
-      setEnfantForm({ code: '', nom: '', prenom: '' });
+      setEnfantForm({ nom: '', prenom: '' });
     }
   };
 
@@ -173,8 +159,6 @@ export default function NouvelleDemande() {
       case 2:
         return formData.motif.trim().length > 0;
       case 3:
-        return true; // Pièces justificatives sont optionnelles
-      case 4:
         return true; // Récapitulatif
       default:
         return false;
@@ -183,7 +167,7 @@ export default function NouvelleDemande() {
 
   const handleNext = () => {
     if (validateStep(activeStep)) {
-      setActiveStep((prev) => Math.min(prev + 1, 4));
+      setActiveStep((prev) => Math.min(prev + 1, 3));
     } else {
       warning('Veuillez remplir tous les champs obligatoires avant de continuer');
     }
@@ -217,25 +201,10 @@ export default function NouvelleDemande() {
         photoId = photoRes.fileId;
       }
 
-      const piecesJustificatives = [];
-      for (const file of files) {
-        if (file.size > 3145728) {
-          throw new Error(`Le fichier ${file.name} dépasse 3 Mo`);
-        }
-        const uploadRes = await uploadService.uploadFile(file);
-        piecesJustificatives.push({
-          nom: file.name,
-          type: file.type,
-          taille: file.size,
-          fichierId: uploadRes.fileId,
-        });
-      }
-
       if (user?.agentId && agentInfo) {
         await agentsService.update(user.agentId, {
-          nomMariage: formData.nomMariage,
-          adresseVille: formData.adresseVille,
           sexe: formData.sexe,
+          telephone: formData.telephone,
           photo: photoId || agentInfo.photo,
           conjoints: formData.conjoints,
           enfants: formData.enfants,
@@ -245,16 +214,15 @@ export default function NouvelleDemande() {
       await demandesService.create({
         motif: formData.motif,
         posteSouhaiteId: formData.posteSouhaiteId || undefined,
-        localisationSouhaiteId: formData.localisationSouhaiteId || undefined,
-        piecesJustificatives,
+        localisationsSouhaitees: formData.localisationsSouhaitees && formData.localisationsSouhaitees.length > 0 ? formData.localisationsSouhaitees : undefined,
+        piecesJustificatives: [],
         informationsAgent: {
           matricule: formData.matricule,
           nom: formData.nom,
           prenom: formData.prenom,
-          nomMariage: formData.nomMariage,
-          adresseVille: formData.adresseVille,
           sexe: formData.sexe,
           email: formData.email,
+          telephone: formData.telephone,
           directionId: formData.directionId,
           serviceId: formData.serviceId,
           conjoints: formData.conjoints,
@@ -308,17 +276,8 @@ export default function NouvelleDemande() {
         );
       case 3:
         return (
-          <Step4PiecesJustificatives
-            files={files}
-            onFileChange={handleFileChange}
-            onRemoveFile={handleRemoveFile}
-          />
-        );
-      case 4:
-        return (
-          <Step5Recapitulatif
+          <Step4Recapitulatif
             formData={formData}
-            files={files}
             postes={postes}
             localites={localites}
             directions={directions}

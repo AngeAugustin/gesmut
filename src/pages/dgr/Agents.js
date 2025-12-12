@@ -6,10 +6,6 @@ import {
   Chip,
   Button,
   Alert,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Grid,
   InputAdornment,
   Avatar,
@@ -34,6 +30,12 @@ import ActionButton from '../../components/common/ActionButton';
 import { getErrorMessage } from '../../utils/errorHandler';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import AgentWizard from '../../components/wizard/AgentWizard';
+import Step1AgentInfosPersonnelles from '../../components/wizard/steps/agent/Step1AgentInfosPersonnelles';
+import Step2AgentFamille from '../../components/wizard/steps/agent/Step2AgentFamille';
+import Step3AgentProfessionnel from '../../components/wizard/steps/agent/Step3AgentProfessionnel';
+import Step4AgentDiplomesCompetences from '../../components/wizard/steps/agent/Step4AgentDiplomesCompetences';
+import Step5AgentRecapitulatif from '../../components/wizard/steps/agent/Step5AgentRecapitulatif';
 
 export default function DGRAgents() {
   const { success, error: showError, warning } = useToast();
@@ -51,11 +53,12 @@ export default function DGRAgents() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [openDialog, setOpenDialog] = useState(false);
+  const [activeStep, setActiveStep] = useState(0);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [photoFile, setPhotoFile] = useState(null);
   const [conjointForm, setConjointForm] = useState({ code: '', nom: '', prenom: '' });
   const [enfantForm, setEnfantForm] = useState({ code: '', nom: '', prenom: '' });
-  const [competenceForm, setCompetenceForm] = useState({ nom: '', categorie: 'A', niveau: '' });
+  const [competenceForm, setCompetenceForm] = useState({ competenceId: '', nom: '', categorie: 'A', niveau: '' });
   const [formData, setFormData] = useState({
     matricule: '',
     nom: '',
@@ -66,12 +69,14 @@ export default function DGRAgents() {
     dateEmbauche: '',
     email: '',
     telephone: '',
+    ifu: '',
+    npi: '',
     adresseVille: '',
     gradeId: '',
     statutId: '',
     serviceId: '',
     localisationActuelleId: '',
-    posteActuelId: '',
+    affectationsPostes: [],
     diplomeIds: [],
     competences: [],
     conjoints: [],
@@ -118,7 +123,7 @@ export default function DGRAgents() {
         console.log('Statut du premier agent:', agentsRes.data[0].statutId);
         console.log('Service du premier agent:', agentsRes.data[0].serviceId);
         console.log('Localisation du premier agent:', agentsRes.data[0].localisationActuelleId);
-        console.log('Poste du premier agent:', agentsRes.data[0].posteActuelId);
+        console.log('Affectations postes du premier agent:', agentsRes.data[0].affectationsPostes);
       }
       
       setAgents(agentsRes.data);
@@ -155,13 +160,15 @@ export default function DGRAgents() {
       dateEmbauche: '',
       email: '',
       telephone: '',
+      ifu: '',
+      npi: '',
       adresseVille: '',
       gradeId: '',
       statutId: '',
       directionId: '',
       serviceId: '',
       localisationActuelleId: '',
-      posteActuelId: '',
+      affectationsPostes: [],
       diplomeIds: [],
       competences: [],
       conjoints: [],
@@ -172,12 +179,14 @@ export default function DGRAgents() {
     setPhotoFile(null);
     setConjointForm({ code: '', nom: '', prenom: '' });
     setEnfantForm({ code: '', nom: '', prenom: '' });
-    setCompetenceForm({ nom: '', categorie: 'A', niveau: '' });
+    setCompetenceForm({ competenceId: '', nom: '', categorie: 'A', niveau: '' });
+    setActiveStep(0);
     setOpenDialog(true);
   };
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
+    setActiveStep(0);
     setFormData({
       matricule: '',
       nom: '',
@@ -188,13 +197,15 @@ export default function DGRAgents() {
       dateEmbauche: '',
       email: '',
       telephone: '',
+      ifu: '',
+      npi: '',
       adresseVille: '',
       gradeId: '',
       statutId: '',
       directionId: '',
       serviceId: '',
       localisationActuelleId: '',
-      posteActuelId: '',
+      affectationsPostes: [],
       diplomeIds: [],
       competences: [],
       conjoints: [],
@@ -205,7 +216,7 @@ export default function DGRAgents() {
     setPhotoFile(null);
     setConjointForm({ code: '', nom: '', prenom: '' });
     setEnfantForm({ code: '', nom: '', prenom: '' });
-    setCompetenceForm({ nom: '', categorie: 'A', niveau: '' });
+    setCompetenceForm({ competenceId: '', nom: '', categorie: 'A', niveau: '' });
   };
 
   const handlePhotoChange = (e) => {
@@ -273,12 +284,14 @@ export default function DGRAgents() {
   };
 
   const handleAddCompetence = () => {
-    if (competenceForm.nom) {
+    if (competenceForm.competenceId && competenceForm.nom) {
+      // Ne garder que nom, categorie et niveau (pas competenceId dans les données finales)
+      const { competenceId, ...competenceData } = competenceForm;
       setFormData((prev) => ({
         ...prev,
-        competences: [...prev.competences, { ...competenceForm }],
+        competences: [...prev.competences, competenceData],
       }));
-      setCompetenceForm({ nom: '', categorie: 'A', niveau: '' });
+      setCompetenceForm({ competenceId: '', nom: '', categorie: 'A', niveau: '' });
     }
   };
 
@@ -287,6 +300,42 @@ export default function DGRAgents() {
       ...prev,
       competences: prev.competences.filter((_, i) => i !== index),
     }));
+  };
+
+  // Validation des étapes
+  const canProceedToNextStep = () => {
+    switch (activeStep) {
+      case 0: // Informations personnelles
+        return !!(formData.matricule && formData.nom && formData.prenom && formData.dateNaissance);
+      case 1: // Famille - toujours possible (optionnel)
+        return true;
+      case 2: // Informations professionnelles
+        return !!(
+          formData.dateEmbauche &&
+          formData.gradeId &&
+          formData.statutId &&
+          formData.directionId &&
+          formData.serviceId
+        );
+      case 3: // Diplômes et compétences - toujours possible (optionnel)
+        return true;
+      case 4: // Récapitulatif
+        return true;
+      default:
+        return false;
+    }
+  };
+
+  const handleNextStep = () => {
+    if (canProceedToNextStep()) {
+      setActiveStep((prev) => Math.min(prev + 1, 4));
+    } else {
+      warning('Veuillez remplir tous les champs obligatoires avant de continuer.');
+    }
+  };
+
+  const handleBackStep = () => {
+    setActiveStep((prev) => Math.max(prev - 1, 0));
   };
 
   const handleSubmit = async () => {
@@ -336,6 +385,12 @@ export default function DGRAgents() {
       if (formData.telephone && formData.telephone.trim()) {
         agentData.telephone = formData.telephone.trim();
       }
+      if (formData.ifu && formData.ifu.trim()) {
+        agentData.ifu = formData.ifu.trim();
+      }
+      if (formData.npi && formData.npi.trim()) {
+        agentData.npi = formData.npi.trim();
+      }
       if (formData.adresseVille && formData.adresseVille.trim()) {
         agentData.adresseVille = formData.adresseVille.trim();
       }
@@ -348,8 +403,13 @@ export default function DGRAgents() {
       if (formData.localisationActuelleId) {
         agentData.localisationActuelleId = formData.localisationActuelleId;
       }
-      if (formData.posteActuelId) {
-        agentData.posteActuelId = formData.posteActuelId;
+      if (formData.affectationsPostes && formData.affectationsPostes.length > 0) {
+        agentData.affectationsPostes = formData.affectationsPostes.map((aff) => ({
+          posteId: aff.posteId,
+          dateDebut: new Date(aff.dateDebut).toISOString(),
+          dateFin: aff.dateFin ? new Date(aff.dateFin).toISOString() : null,
+          motifFin: aff.motifFin || null,
+        }));
       }
       if (formData.diplomeIds && formData.diplomeIds.length > 0) {
         agentData.diplomeIds = formData.diplomeIds;
@@ -367,7 +427,7 @@ export default function DGRAgents() {
       await agentsService.create(agentData);
       success('Agent créé avec succès !');
       handleCloseDialog();
-      fetchData();
+      await fetchData();
     } catch (err) {
       console.error('Erreur lors de la création de l\'agent:', err);
       const errorMessage = getErrorMessage(err);
@@ -475,12 +535,15 @@ export default function DGRAgents() {
     ];
   };
 
+
   return (
     <Box>
-      <PageHeader
-        title="Gestion des agents"
-        subtitle="Consultez et gérez tous les agents du système"
-      />
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <PageHeader
+          title="Gestion des agents"
+          subtitle="Consultez et gérez tous les agents du système"
+        />
+      </Box>
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -562,448 +625,100 @@ export default function DGRAgents() {
         emptyMessage="Aucun agent trouvé"
       />
 
-      {/* Dialog pour créer un agent */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
-        <DialogTitle>Ajouter un agent</DialogTitle>
-        <DialogContent>
-          <Box sx={{ mt: 2 }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Matricule *"
-                  value={formData.matricule}
-                  onChange={(e) => setFormData({ ...formData, matricule: e.target.value })}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Nom *"
-                  value={formData.nom}
-                  onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Prénom *"
-                  value={formData.prenom}
-                  onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Nom de mariage"
-                  value={formData.nomMariage}
-                  onChange={(e) => setFormData({ ...formData, nomMariage: e.target.value })}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  select
-                  label="Sexe"
-                  value={formData.sexe}
-                  onChange={(e) => setFormData({ ...formData, sexe: e.target.value })}
-                >
-                  <MenuItem value="">Non spécifié</MenuItem>
-                  <MenuItem value="M">Masculin</MenuItem>
-                  <MenuItem value="F">Féminin</MenuItem>
-                  <MenuItem value="Autre">Autre</MenuItem>
-                </TextField>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Date de naissance *"
-                  type="date"
-                  value={formData.dateNaissance}
-                  onChange={(e) => setFormData({ ...formData, dateNaissance: e.target.value })}
-                  InputLabelProps={{ shrink: true }}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Date d'embauche *"
-                  type="date"
-                  value={formData.dateEmbauche}
-                  onChange={(e) => setFormData({ ...formData, dateEmbauche: e.target.value })}
-                  InputLabelProps={{ shrink: true }}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Téléphone"
-                  value={formData.telephone}
-                  onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start">+229</InputAdornment>,
-                  }}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Adresse/Ville"
-                  value={formData.adresseVille}
-                  onChange={(e) => setFormData({ ...formData, adresseVille: e.target.value })}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  select
-                  label="Grade *"
-                  value={formData.gradeId}
-                  onChange={(e) => setFormData({ ...formData, gradeId: e.target.value })}
-                  required
-                >
-                  <MenuItem value="">Sélectionner un grade</MenuItem>
-                  {grades.map((grade) => (
-                    <MenuItem key={grade._id} value={grade._id}>
-                      {grade.libelle}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  select
-                  label="Statut *"
-                  value={formData.statutId}
-                  onChange={(e) => setFormData({ ...formData, statutId: e.target.value })}
-                  required
-                >
-                  <MenuItem value="">Sélectionner un statut</MenuItem>
-                  {statuts.map((statut) => (
-                    <MenuItem key={statut._id} value={statut._id}>
-                      {statut.libelle}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  select
-                  label="Direction *"
-                  value={formData.directionId}
-                  onChange={(e) => setFormData({ ...formData, directionId: e.target.value, serviceId: '' })}
-                  required
-                >
-                  <MenuItem value="">Sélectionner une direction</MenuItem>
-                  {directions.map((direction) => (
-                    <MenuItem key={direction._id} value={direction._id}>
-                      {direction.libelle}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  select
-                  label="Service *"
-                  value={formData.serviceId}
-                  onChange={(e) => setFormData({ ...formData, serviceId: e.target.value })}
-                  required
-                  disabled={!formData.directionId}
-                  helperText={!formData.directionId ? 'Veuillez d\'abord sélectionner une direction' : ''}
-                >
-                  <MenuItem value="">Sélectionner un service</MenuItem>
-                  {services
-                    .filter((service) => {
-                      if (!formData.directionId) return false;
-                      const serviceDirectionId = service.directionId?._id || service.directionId;
-                      return serviceDirectionId === formData.directionId;
-                    })
-                    .map((service) => (
-                      <MenuItem key={service._id} value={service._id}>
-                        {service.libelle}
-                      </MenuItem>
-                    ))}
-                </TextField>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  select
-                  label="Localisation actuelle"
-                  value={formData.localisationActuelleId}
-                  onChange={(e) => setFormData({ ...formData, localisationActuelleId: e.target.value })}
-                >
-                  <MenuItem value="">Aucune</MenuItem>
-                  {localites.map((localite) => (
-                    <MenuItem key={localite._id} value={localite._id}>
-                      {localite.libelle}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  select
-                  label="Poste actuel"
-                  value={formData.posteActuelId}
-                  onChange={(e) => setFormData({ ...formData, posteActuelId: e.target.value })}
-                >
-                  <MenuItem value="">Aucun</MenuItem>
-                  {postes.map((poste) => (
-                    <MenuItem key={poste._id} value={poste._id}>
-                      {poste.intitule}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  select
-                  SelectProps={{
-                    multiple: true,
-                  }}
-                  label="Diplômes"
-                  value={formData.diplomeIds}
-                  onChange={(e) => setFormData({ ...formData, diplomeIds: e.target.value })}
-                  renderValue={(selected) => {
-                    if (selected.length === 0) return 'Aucun';
-                    return selected.map((id) => {
-                      const diplome = diplomes.find((d) => d._id === id);
-                      return diplome?.libelle || id;
-                    }).join(', ');
-                  }}
-                >
-                  {diplomes.map((diplome) => (
-                    <MenuItem key={diplome._id} value={diplome._id}>
-                      {diplome.libelle}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-              
-              {/* Photo */}
-              <Grid item xs={12}>
-                <Divider sx={{ my: 2 }} />
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>Photo</Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  {photoPreview ? (
-                    <Box sx={{ position: 'relative' }}>
-                      <Avatar src={photoPreview} sx={{ width: 100, height: 100 }} />
-                      <IconButton
-                        size="small"
-                        onClick={handleRemovePhoto}
-                        sx={{ position: 'absolute', top: -8, right: -8, bgcolor: 'error.main', color: 'white' }}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  ) : (
-                    <Avatar sx={{ width: 100, height: 100 }}>
-                      <PhotoCameraIcon />
-                    </Avatar>
-                  )}
-                  <Button
-                    variant="outlined"
-                    component="label"
-                    startIcon={<PhotoCameraIcon />}
-                  >
-                    {photoPreview ? 'Changer la photo' : 'Ajouter une photo'}
-                    <input
-                      type="file"
-                      hidden
-                      accept="image/*"
-                      onChange={handlePhotoChange}
-                    />
-                  </Button>
-                </Box>
-              </Grid>
-
-              {/* Compétences */}
-              <Grid item xs={12}>
-                <Divider sx={{ my: 2 }} />
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>Compétences</Typography>
-                <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-                  <TextField
-                    label="Nom de la compétence"
-                    value={competenceForm.nom}
-                    onChange={(e) => setCompetenceForm({ ...competenceForm, nom: e.target.value })}
-                    sx={{ flex: 1, minWidth: 200 }}
-                  />
-                  <TextField
-                    select
-                    label="Catégorie"
-                    value={competenceForm.categorie}
-                    onChange={(e) => setCompetenceForm({ ...competenceForm, categorie: e.target.value })}
-                    sx={{ minWidth: 150 }}
-                  >
-                    <MenuItem value="A">A - Direction & Expertise</MenuItem>
-                    <MenuItem value="B">B - Intermédiaire</MenuItem>
-                    <MenuItem value="C">C - Exécution</MenuItem>
-                  </TextField>
-                  <TextField
-                    label="Niveau"
-                    value={competenceForm.niveau}
-                    onChange={(e) => setCompetenceForm({ ...competenceForm, niveau: e.target.value })}
-                    placeholder="Ex: Avancé, Expert"
-                    sx={{ minWidth: 150 }}
-                  />
-                  <Button
-                    variant="outlined"
-                    startIcon={<AddIcon />}
-                    onClick={handleAddCompetence}
-                    disabled={!competenceForm.nom}
-                  >
-                    Ajouter
-                  </Button>
-                </Box>
-                {formData.competences.length > 0 && (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {formData.competences.map((comp, index) => (
-                      <Chip
-                        key={index}
-                        label={`${comp.nom} (${comp.categorie})${comp.niveau ? ' - ' + comp.niveau : ''}`}
-                        onDelete={() => handleRemoveCompetence(index)}
-                        color="primary"
-                        variant="outlined"
-                      />
-                    ))}
-                  </Box>
-                )}
-              </Grid>
-
-              {/* Conjoints */}
-              <Grid item xs={12}>
-                <Divider sx={{ my: 2 }} />
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                  Conjoints {formData.sexe === 'F' && '(Maximum 1)'}
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-                  <TextField
-                    label="Code"
-                    value={conjointForm.code}
-                    onChange={(e) => setConjointForm({ ...conjointForm, code: e.target.value })}
-                    sx={{ minWidth: 120 }}
-                  />
-                  <TextField
-                    label="Nom *"
-                    value={conjointForm.nom}
-                    onChange={(e) => setConjointForm({ ...conjointForm, nom: e.target.value })}
-                    required
-                    sx={{ flex: 1, minWidth: 150 }}
-                  />
-                  <TextField
-                    label="Prénom *"
-                    value={conjointForm.prenom}
-                    onChange={(e) => setConjointForm({ ...conjointForm, prenom: e.target.value })}
-                    required
-                    sx={{ flex: 1, minWidth: 150 }}
-                  />
-                  <Button
-                    variant="outlined"
-                    startIcon={<AddIcon />}
-                    onClick={handleAddConjoint}
-                    disabled={!conjointForm.nom || !conjointForm.prenom}
-                  >
-                    Ajouter
-                  </Button>
-                </Box>
-                {formData.conjoints.length > 0 && (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {formData.conjoints.map((conjoint, index) => (
-                      <Chip
-                        key={index}
-                        label={`${conjoint.nom} ${conjoint.prenom}${conjoint.code ? ' (' + conjoint.code + ')' : ''}`}
-                        onDelete={() => handleRemoveConjoint(index)}
-                        color="secondary"
-                        variant="outlined"
-                      />
-                    ))}
-                  </Box>
-                )}
-              </Grid>
-
-              {/* Enfants */}
-              <Grid item xs={12}>
-                <Divider sx={{ my: 2 }} />
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>Enfants</Typography>
-                <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-                  <TextField
-                    label="Code"
-                    value={enfantForm.code}
-                    onChange={(e) => setEnfantForm({ ...enfantForm, code: e.target.value })}
-                    sx={{ minWidth: 120 }}
-                  />
-                  <TextField
-                    label="Nom *"
-                    value={enfantForm.nom}
-                    onChange={(e) => setEnfantForm({ ...enfantForm, nom: e.target.value })}
-                    required
-                    sx={{ flex: 1, minWidth: 150 }}
-                  />
-                  <TextField
-                    label="Prénom *"
-                    value={enfantForm.prenom}
-                    onChange={(e) => setEnfantForm({ ...enfantForm, prenom: e.target.value })}
-                    required
-                    sx={{ flex: 1, minWidth: 150 }}
-                  />
-                  <Button
-                    variant="outlined"
-                    startIcon={<AddIcon />}
-                    onClick={handleAddEnfant}
-                    disabled={!enfantForm.nom || !enfantForm.prenom}
-                  >
-                    Ajouter
-                  </Button>
-                </Box>
-                {formData.enfants.length > 0 && (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {formData.enfants.map((enfant, index) => (
-                      <Chip
-                        key={index}
-                        label={`${enfant.nom} ${enfant.prenom}${enfant.code ? ' (' + enfant.code + ')' : ''}`}
-                        onDelete={() => handleRemoveEnfant(index)}
-                        color="success"
-                        variant="outlined"
-                      />
-                    ))}
-                  </Box>
-                )}
-              </Grid>
-            </Grid>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Annuler</Button>
-          <Button
-            onClick={handleSubmit}
-            variant="contained"
-            disabled={loading || !formData.matricule || !formData.nom || !formData.prenom || !formData.dateNaissance || !formData.dateEmbauche || !formData.gradeId || !formData.statutId}
+      {/* Wizard pour créer un agent */}
+      {openDialog && (
+        <Box
+          sx={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            bgcolor: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 1300,
+            overflow: 'auto',
+            py: 4,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              handleCloseDialog();
+            }
+          }}
+        >
+          <AgentWizard
+            activeStep={activeStep}
+            onStepChange={setActiveStep}
+            onNext={handleNextStep}
+            onBack={handleBackStep}
+            onSubmit={handleSubmit}
+            loading={loading}
+            canProceed={canProceedToNextStep()}
           >
-            {loading ? 'Création...' : 'Créer'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+            {activeStep === 0 && (
+              <Step1AgentInfosPersonnelles
+                formData={formData}
+                setFormData={setFormData}
+                photoPreview={photoPreview}
+                onPhotoChange={handlePhotoChange}
+                onRemovePhoto={handleRemovePhoto}
+              />
+            )}
+            {activeStep === 1 && (
+              <Step2AgentFamille
+                formData={formData}
+                setFormData={setFormData}
+                conjointForm={conjointForm}
+                setConjointForm={setConjointForm}
+                enfantForm={enfantForm}
+                setEnfantForm={setEnfantForm}
+                onAddConjoint={handleAddConjoint}
+                onRemoveConjoint={handleRemoveConjoint}
+                onAddEnfant={handleAddEnfant}
+                onRemoveEnfant={handleRemoveEnfant}
+              />
+            )}
+            {activeStep === 2 && (
+              <Step3AgentProfessionnel
+                formData={formData}
+                setFormData={setFormData}
+                grades={grades}
+                statuts={statuts}
+                directions={directions}
+                services={services}
+                localites={localites}
+                postes={postes}
+              />
+            )}
+            {activeStep === 3 && (
+              <Step4AgentDiplomesCompetences
+                formData={formData}
+                setFormData={setFormData}
+                diplomes={diplomes}
+                competences={competences}
+                competenceForm={competenceForm}
+                setCompetenceForm={setCompetenceForm}
+                onAddCompetence={handleAddCompetence}
+                onRemoveCompetence={handleRemoveCompetence}
+              />
+            )}
+            {activeStep === 4 && (
+              <Step5AgentRecapitulatif
+                formData={formData}
+                photoPreview={photoPreview}
+                grades={grades}
+                statuts={statuts}
+                directions={directions}
+                services={services}
+                localites={localites}
+                postes={postes}
+                diplomes={diplomes}
+              />
+            )}
+          </AgentWizard>
+        </Box>
+      )}
+
+
     </Box>
   );
 }

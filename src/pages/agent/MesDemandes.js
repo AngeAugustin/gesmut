@@ -37,18 +37,30 @@ export default function MesDemandes() {
     },
     {
       id: 'posteSouhaiteId',
-      label: 'Poste souhaité',
+      label: 'Nouveau poste',
       render: (value) => {
         if (!value) return '-';
         return typeof value === 'object' && value !== null ? value.intitule || '-' : '-';
       },
     },
     {
-      id: 'localisationSouhaiteId',
-      label: 'Localisation souhaitée',
-      render: (value) => {
-        if (!value) return '-';
-        return typeof value === 'object' && value !== null ? value.libelle || '-' : '-';
+      id: 'localisationsSouhaitees',
+      label: 'Localisation(s) souhaitée(s)',
+      render: (value, row) => {
+        // Gérer les localisations multiples (nouveau) ou unique (ancien pour compatibilité)
+        const localisations = row.localisationsSouhaitees || (row.localisationSouhaiteId ? [row.localisationSouhaiteId] : []);
+        if (!localisations || localisations.length === 0) return '-';
+        const libelles = Array.isArray(localisations)
+          ? localisations
+              .map((loc) => {
+                if (typeof loc === 'object' && loc !== null) {
+                  return loc.libelle || '-';
+                }
+                return '-';
+              })
+              .filter((lib) => lib !== '-')
+          : [];
+        return libelles.length > 0 ? libelles.join(', ') : '-';
       },
     },
     {
@@ -88,6 +100,7 @@ export default function MesDemandes() {
           date: d.createdAt,
           motif: d.motif || '-',
           posteSouhaiteId: d.posteSouhaiteId,
+          localisationsSouhaitees: d.localisationsSouhaitees,
           localisationSouhaiteId: d.localisationSouhaiteId,
           statut: d.statut,
         }))}

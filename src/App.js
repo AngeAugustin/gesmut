@@ -52,6 +52,7 @@ import AdminUtilisateurs from './pages/admin/Utilisateurs';
 import AdminReferentiels from './pages/admin/Referentiels';
 import AdminWorkflow from './pages/admin/Workflow';
 import AdminDemandes from './pages/admin/Demandes';
+import AdminAffectations from './pages/admin/Affectations';
 import AdminAudit from './pages/admin/Audit';
 import TestDocuments from './pages/admin/TestDocuments';
 
@@ -110,7 +111,7 @@ function App() {
                   <Route
                     path="/dgr/*"
                     element={
-                      <ProtectedRoute allowedRoles={['DGR']}>
+                      <ProtectedRoute allowedRoles={['DGR', 'ADMIN']}>
                         <MainLayout>
                           <Routes>
                             <Route path="dashboard" element={<DGRDashboard />} />
@@ -157,6 +158,7 @@ function App() {
                       <Route path="historique" element={<DNCFHistorique />} />
                       <Route path="demandes/:id" element={<DetailDemande />} />
                       <Route path="mutations-strategiques" element={<DNCFMutationsStrategiques />} />
+                      <Route path="agents/:id" element={<DetailAgent />} />
                       <Route path="parametres" element={<DNCFParametres />} />
                     </Routes>
                   </MainLayout>
@@ -178,6 +180,7 @@ function App() {
                       <Route path="agents/:id" element={<DetailAgent />} />
                       <Route path="postes" element={<DGRPostes />} />
                       <Route path="postes/:id" element={<DetailPoste />} />
+                      <Route path="affectations" element={<AdminAffectations />} />
                       <Route path="rapports" element={<DGRRapports />} />
                       <Route path="utilisateurs" element={<AdminUtilisateurs />} />
                       <Route path="referentiels" element={<AdminReferentiels />} />

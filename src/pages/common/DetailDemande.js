@@ -260,8 +260,6 @@ export default function DetailDemande() {
   let agentPrenom = '';
   let agentMatricule = null;
   let agentPhoto = null;
-  let agentNomMariage = null;
-  let agentAdresseVille = null;
   let agentSexe = null;
   let agentEmail = null;
   let agentConjoints = [];
@@ -275,8 +273,6 @@ export default function DetailDemande() {
     agentPrenom = agent.prenom || '';
     agentMatricule = agent.matricule;
     agentPhoto = agent.photo;
-    agentNomMariage = agent.nomMariage;
-    agentAdresseVille = agent.adresseVille;
     agentSexe = agent.sexe;
     // Extraire les conjoints et enfants - vérifier si c'est un tableau
     agentConjoints = Array.isArray(agent.conjoints) ? agent.conjoints : (agent.conjoints ? [agent.conjoints] : []);
@@ -308,12 +304,6 @@ export default function DetailDemande() {
     }
     if (!agentPhoto) {
       agentPhoto = demande.informationsAgent.photo;
-    }
-    if (!agentNomMariage) {
-      agentNomMariage = demande.informationsAgent.nomMariage;
-    }
-    if (!agentAdresseVille) {
-      agentAdresseVille = demande.informationsAgent.adresseVille;
     }
     if (!agentSexe) {
       agentSexe = demande.informationsAgent.sexe;
@@ -355,10 +345,18 @@ export default function DetailDemande() {
     ? poste.intitule
     : '-';
 
-  const localisation = demande.localisationSouhaiteId;
-  const localisationLibelle = typeof localisation === 'object' && localisation !== null
-    ? localisation.libelle
-    : '-';
+  // Gérer les localisations multiples (nouveau) ou unique (ancien pour compatibilité)
+  const localisations = demande.localisationsSouhaitees || (demande.localisationSouhaiteId ? [demande.localisationSouhaiteId] : []);
+  const localisationsLibelles = Array.isArray(localisations)
+    ? localisations
+        .map((loc) => {
+          if (typeof loc === 'object' && loc !== null) {
+            return loc.libelle || '-';
+          }
+          return '-';
+        })
+        .filter((lib) => lib !== '-')
+    : [];
 
   return (
     <Box>
@@ -542,26 +540,6 @@ export default function DetailDemande() {
                   </Typography>
                 </Grid>
               )}
-              {agentNomMariage && (
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2" color="text.secondary">
-                    Nom de mariage
-                  </Typography>
-                  <Typography variant="body1">
-                    {agentNomMariage}
-                  </Typography>
-                </Grid>
-              )}
-              {agentAdresseVille && (
-                <Grid item xs={12} sm={6}>
-                  <Typography variant="body2" color="text.secondary">
-                    Adresse ville
-                  </Typography>
-                  <Typography variant="body1">
-                    {agentAdresseVille}
-                  </Typography>
-                </Grid>
-              )}
               {agentSexe && (
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" color="text.secondary">
@@ -649,7 +627,7 @@ export default function DetailDemande() {
               </Grid>
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" color="text.secondary">
-                  Poste souhaité
+                  Nouveau poste
                 </Typography>
                 <Typography variant="body1">
                   {posteLibelle}
@@ -657,10 +635,10 @@ export default function DetailDemande() {
               </Grid>
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" color="text.secondary">
-                  Localisation souhaitée
+                  Localisation{localisationsLibelles.length > 1 ? 's' : ''} souhaitée{localisationsLibelles.length > 1 ? 's' : ''}
                 </Typography>
                 <Typography variant="body1">
-                  {localisationLibelle}
+                  {localisationsLibelles.length > 0 ? localisationsLibelles.join(', ') : '-'}
                 </Typography>
               </Grid>
               {demande.raisonsIneligibilite && demande.raisonsIneligibilite.length > 0 && (
@@ -719,7 +697,6 @@ export default function DetailDemande() {
                         <ListItem key={index} sx={{ pl: 0 }}>
                           <ListItemText
                             primary={`${conjoint.nom || ''} ${conjoint.prenom || ''}`.trim() || 'Nom non renseigné'}
-                            secondary={conjoint.code ? `Code: ${conjoint.code}` : 'Sans code'}
                           />
                         </ListItem>
                       );
@@ -739,7 +716,6 @@ export default function DetailDemande() {
                         <ListItem key={index} sx={{ pl: 0 }}>
                           <ListItemText
                             primary={`${enfant.nom || ''} ${enfant.prenom || ''}`.trim() || 'Nom non renseigné'}
-                            secondary={enfant.code ? `Code: ${enfant.code}` : 'Sans code'}
                           />
                         </ListItem>
                       );

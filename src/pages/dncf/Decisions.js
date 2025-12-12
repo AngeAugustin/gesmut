@@ -46,6 +46,7 @@ export default function DNCFDecisions() {
   const [formData, setFormData] = useState({
     decision: 'ACCEPTEE',
     commentaire: '',
+    dateMutation: '',
   });
   const navigate = useNavigate();
 
@@ -112,12 +113,19 @@ export default function DNCFDecisions() {
     
     try {
       // Créer la validation d'abord
-      await validationsService.create({
+      const validationData = {
         demandeId: demandeId,
         decision: formData.decision === 'ACCEPTEE' ? 'VALIDE' : 'REJETE',
         commentaire: formData.commentaire,
         validateurRole: 'DNCF', // Spécifier explicitement le rôle
-      });
+      };
+
+      // Si la décision est acceptée et qu'une date de mutation est fournie, l'ajouter
+      if (formData.decision === 'ACCEPTEE' && formData.dateMutation) {
+        validationData.dateMutation = new Date(formData.dateMutation);
+      }
+
+      await validationsService.create(validationData);
 
       if (formData.decision === 'ACCEPTEE') {
         // Générer les 3 documents, les sauvegarder et les envoyer par email
@@ -208,7 +216,7 @@ export default function DNCFDecisions() {
         
         // Fermer le dialog et recharger
         setOpen(false);
-        setFormData({ decision: 'ACCEPTEE', commentaire: '' });
+        setFormData({ decision: 'ACCEPTEE', commentaire: '', dateMutation: '' });
         setSelectedDemande(null);
         
         // Recharger les demandes
@@ -249,7 +257,7 @@ export default function DNCFDecisions() {
       } else {
         // Si rejet, réinitialiser complètement et recharger
         setOpen(false);
-        setFormData({ decision: 'ACCEPTEE', commentaire: '' });
+        setFormData({ decision: 'ACCEPTEE', commentaire: '', dateMutation: '' });
         setSelectedDemande(null);
         
         // Recharger avec la même logique
@@ -316,7 +324,7 @@ export default function DNCFDecisions() {
             <TableRow>
               <TableCell>Agent</TableCell>
               <TableCell>Motif</TableCell>
-              <TableCell>Poste souhaité</TableCell>
+              <TableCell>Nouveau poste</TableCell>
               <TableCell>Statut</TableCell>
               <TableCell>Date</TableCell>
               <TableCell>Actions</TableCell>
@@ -393,7 +401,7 @@ export default function DNCFDecisions() {
         open={open} 
         onClose={() => {
           setOpen(false);
-          setFormData({ decision: 'ACCEPTEE', commentaire: '' });
+          setFormData({ decision: 'ACCEPTEE', commentaire: '', dateMutation: '' });
           setSelectedDemande(null);
         }} 
         maxWidth="sm" 
@@ -445,7 +453,23 @@ export default function DNCFDecisions() {
               setFormData({ ...formData, commentaire: e.target.value })
             }
             required
+            sx={{ mb: 2 }}
           />
+          {formData.decision === 'ACCEPTEE' && (
+            <TextField
+              fullWidth
+              type="date"
+              label="Date de mutation (optionnel)"
+              value={formData.dateMutation}
+              onChange={(e) =>
+                setFormData({ ...formData, dateMutation: e.target.value })
+              }
+              InputLabelProps={{
+                shrink: true,
+              }}
+              helperText="Si une date est spécifiée, la mutation sera appliquée automatiquement à cette date. Si aucune date n'est spécifiée, la mutation sera appliquée immédiatement."
+            />
+          )}
         </DialogContent>
         <DialogActions>
           <Button 

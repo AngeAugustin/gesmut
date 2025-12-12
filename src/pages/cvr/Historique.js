@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Box, TextField, MenuItem, Button, Typography } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import FilterListIcon from '@mui/icons-material/FilterList';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import { useNavigate } from 'react-router-dom';
 import { validationsService } from '../../services/validationsService';
 import { useAuth } from '../../context/AuthContext';
 import PageHeader from '../../components/common/PageHeader';
@@ -13,6 +15,7 @@ import { saveAs } from 'file-saver';
 
 export default function Historique() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [validations, setValidations] = useState([]);
   const [filteredValidations, setFilteredValidations] = useState([]);
   const [filters, setFilters] = useState({
@@ -208,6 +211,26 @@ export default function Historique() {
     },
   ];
 
+  const actions = (row) => {
+    // Extraire l'ID de la demande
+    const demandeId = typeof row.demandeId === 'object' && row.demandeId !== null
+      ? row.demandeId._id || row.demandeId
+      : row.demandeId;
+    
+    if (!demandeId) {
+      return [];
+    }
+
+    return [
+      {
+        icon: <VisibilityIcon />,
+        tooltip: 'Voir les détails de la demande',
+        color: 'primary',
+        onClick: () => navigate(`/cvr/demandes/${demandeId}`),
+      },
+    ];
+  };
+
   return (
     <Box>
       <PageHeader
@@ -277,6 +300,7 @@ export default function Historique() {
           commentaire: v.commentaire,
           ...v,
         }))}
+        actions={actions}
         emptyMessage="Aucune vérification dans l'historique"
       />
     </Box>

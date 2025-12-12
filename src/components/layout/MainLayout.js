@@ -252,6 +252,7 @@ const getMenuSections = (role) => {
             { text: 'Demandes', icon: <AssignmentIcon />, path: '/admin/demandes' },
             { text: 'Agents', icon: <PeopleIcon />, path: '/admin/agents' },
             { text: 'Postes', icon: <WorkIcon />, path: '/admin/postes' },
+            { text: 'Affectations', icon: <SwapHorizIcon />, path: '/admin/affectations' },
             { text: 'Rapports', icon: <AssessmentIcon />, path: '/admin/rapports' },
           ],
         },
@@ -319,6 +320,7 @@ export default function MainLayout({ children }) {
   const handleLogout = () => {
     logout();
     navigate('/auth/login');
+    setAnchorEl(null);
   };
 
   const menuSections = getMenuSections(user?.role);
@@ -421,69 +423,73 @@ export default function MainLayout({ children }) {
       <Box sx={{ 
         borderTop: '1px solid',
         borderColor: 'divider',
-        p: 2,
+        p: 1.5,
         mt: 'auto',
       }}>
         {!sidebarCollapsed ? (
           <>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+            <Box 
+              sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 1,
+                borderRadius: 1,
+                p: 0.5,
+              }}
+            >
               <Avatar
                 sx={{
-                  width: 40,
-                  height: 40,
-                  background: 'linear-gradient(135deg, #0f766e 0%, #115e59 100%)',
-                  fontSize: '0.875rem',
-                  fontWeight: 600,
+                  width: 36,
+                  height: 36,
+                  bgcolor: 'grey.300',
+                  color: 'grey.600',
                 }}
               >
-                {user?.prenom?.[0]}{user?.nom?.[0]}
+                <AccountCircleIcon />
               </Avatar>
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography 
                   variant="body2" 
                   sx={{ 
                     fontWeight: 600, 
-                    color: 'primary.main',
+                    color: 'text.primary',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
+                    fontSize: '0.875rem',
+                    lineHeight: 1.2,
                   }}
                 >
                   {user?.prenom} {user?.nom}
                 </Typography>
-                <Typography 
-                  variant="caption" 
-                  color="text.secondary"
+                <Box
                   sx={{
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
+                    display: 'inline-block',
+                    px: 1,
+                    py: 0.125,
+                    borderRadius: '10px',
+                    bgcolor: 'grey.200',
+                    mt: 0.25,
                   }}
                 >
-                  {user?.role === 'ADMIN' ? 'Administrateur' : 
-                   user?.role === 'DGR' ? 'Direction Générale' :
-                   user?.role === 'CVR' ? 'Commission Vérification' :
-                   user?.role === 'DNCF' ? 'DNCF' :
-                   user?.role === 'RESPONSABLE' ? 'Responsable' : 'Agent'}
-                </Typography>
+                  <Typography 
+                    variant="caption" 
+                    sx={{
+                      color: 'grey.700',
+                      fontWeight: 500,
+                      fontSize: '0.7rem',
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {user?.role === 'ADMIN' ? 'Administrateur' : 
+                     user?.role === 'DGR' ? 'Direction Générale' :
+                     user?.role === 'CVR' ? 'Commission Vérification' :
+                     user?.role === 'DNCF' ? 'DNCF' :
+                     user?.role === 'RESPONSABLE' ? 'Responsable' : 'Agent'}
+                  </Typography>
+                </Box>
               </Box>
             </Box>
-            <ListItemButton
-              onClick={handleLogout}
-              sx={{
-                borderRadius: 8,
-                minHeight: 40,
-                color: 'text.secondary',
-                '&:hover': {
-                  backgroundColor: 'action.hover',
-                },
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: 40, color: 'text.secondary' }}>
-                <LogoutIcon />
-              </ListItemIcon>
-              <ListItemText primary="Déconnexion" />
-            </ListItemButton>
           </>
         ) : (
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>

@@ -123,10 +123,19 @@ export default function Suivi() {
     ? poste.intitule
     : '-';
 
-  const localisation = demande?.localisationSouhaiteId;
-  const localisationLibelle = localisation && typeof localisation === 'object' && localisation !== null
-    ? localisation.libelle
-    : '-';
+  // Gérer les localisations multiples (nouveau) ou unique (ancien pour compatibilité)
+  const localisations = demande?.localisationsSouhaitees || (demande?.localisationSouhaiteId ? [demande.localisationSouhaiteId] : []);
+  const localisationsLibelles = Array.isArray(localisations)
+    ? localisations
+        .map((loc) => {
+          if (typeof loc === 'object' && loc !== null) {
+            return loc.libelle || '-';
+          }
+          return '-';
+        })
+        .filter((lib) => lib !== '-')
+    : [];
+  const localisationLibelle = localisationsLibelles.length > 0 ? localisationsLibelles.join(', ') : '-';
 
   return (
     <Box
@@ -242,7 +251,7 @@ export default function Suivi() {
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
                   <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
-                    Poste souhaité:
+                    Nouveau poste:
                   </Typography>
                   <Typography variant="body2">
                     {posteLibelle}

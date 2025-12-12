@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { authService } from '../../services/authService';
 import { referentielsService } from '../../services/referentielsService';
 import { postesService } from '../../services/postesService';
+import { agentsService } from '../../services/agentsService';
 import { useToast } from '../../context/ToastContext';
 
 const getRoleRoute = (role) => {
@@ -27,7 +28,12 @@ const roles = [
 
 export default function Register() {
   const { success, error: showError } = useToast();
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [searchType, setSearchType] = useState('matricule');
+  const [searchValue, setSearchValue] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [agentFound, setAgentFound] = useState(false);
+  const [agentNotFound, setAgentNotFound] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -69,6 +75,97 @@ export default function Register() {
     fetchData();
   }, []);
 
+  // Recherche de l'agent par Type/Valeur
+  const searchAgentByIdentifier = async () => {
+    if (!searchValue || searchValue.trim() === '') {
+      setAgentNotFound(false);
+      return;
+    }
+
+    setSearching(true);
+    setAgentNotFound(false);
+
+    try {
+      const response = await agentsService.findByIdentifierPublic(searchType, searchValue.trim());
+      
+      if (response.data.found && response.data.agent) {
+        const agent = response.data.agent;
+        
+        // Extraire les IDs (en string)
+        const serviceId = agent.serviceId?._id 
+          ? (typeof agent.serviceId._id === 'string' ? agent.serviceId._id : agent.serviceId._id.toString())
+          : (agent.serviceId ? (typeof agent.serviceId === 'string' ? agent.serviceId : agent.serviceId.toString()) : '');
+        
+        const directionId = agent.serviceId?.directionId?._id
+          ? (typeof agent.serviceId.directionId._id === 'string' ? agent.serviceId.directionId._id : agent.serviceId.directionId._id.toString())
+          : (agent.serviceId?.directionId ? (typeof agent.serviceId.directionId === 'string' ? agent.serviceId.directionId : agent.serviceId.directionId.toString()) : '');
+        
+        const gradeId = agent.gradeId?._id
+          ? (typeof agent.gradeId._id === 'string' ? agent.gradeId._id : agent.gradeId._id.toString())
+          : (agent.gradeId ? (typeof agent.gradeId === 'string' ? agent.gradeId : agent.gradeId.toString()) : '');
+        
+        // Récupérer le poste actuel (dernière affectation)
+        let posteId = '';
+        if (agent.affectationsPostes && agent.affectationsPostes.length > 0) {
+          const derniereAffectation = agent.affectationsPostes[agent.affectationsPostes.length - 1];
+          if (derniereAffectation.posteId) {
+            const poste = derniereAffectation.posteId;
+            if (typeof poste === 'object' && poste !== null) {
+              posteId = poste._id ? (typeof poste._id === 'string' ? poste._id : poste._id.toString()) : '';
+            } else {
+              posteId = poste.toString();
+            }
+          }
+        }
+
+        // Extraire l'ID de l'agent
+        const agentId = agent._id 
+          ? (typeof agent._id === 'string' ? agent._id : agent._id.toString())
+          : '';
+
+        // Pré-remplir les champs
+        setFormData({
+          ...formData,
+          nom: agent.nom || '',
+          prenom: agent.prenom || '',
+          directionId: directionId || '',
+          serviceId: serviceId || '',
+          gradeId: gradeId || '',
+          posteId: posteId || '',
+          agentId: agentId || '',
+        });
+
+        setAgentFound(true);
+        setAgentNotFound(false);
+        // Passer automatiquement à l'étape 1 quand l'agent est trouvé
+        setCurrentStep(1);
+      } else {
+        setAgentFound(false);
+        setAgentNotFound(true);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la recherche de l\'agent:', error);
+      setAgentFound(false);
+      setAgentNotFound(true);
+      // Afficher un message d'erreur si c'est une erreur réseau ou serveur
+      if (error.response?.data?.message) {
+        showError(error.response.data.message);
+      } else if (error.message) {
+        showError(`Erreur lors de la recherche: ${error.message}`);
+      }
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  // Réinitialiser l'état si la valeur de recherche change
+  useEffect(() => {
+    if (!searchValue || searchValue.trim() === '') {
+      setAgentFound(false);
+      setAgentNotFound(false);
+    }
+  }, [searchValue]);
+
   // Filtrer les services par direction sélectionnée
   const filteredServices = formData.directionId
     ? services.filter((s) => {
@@ -105,7 +202,10 @@ export default function Register() {
     if (e) {
       e.preventDefault();
     }
-    if (currentStep === 1 && validateStep1()) {
+    if (currentStep === 0) {
+      // Si on est à l'étape 0, déclencher la recherche
+      searchAgentByIdentifier();
+    } else if (currentStep === 1 && validateStep1()) {
       setError('');
       setCurrentStep(2);
     } else if (currentStep === 1) {
@@ -115,11 +215,19 @@ export default function Register() {
 
   const handlePrevious = () => {
     setError('');
-    setCurrentStep(1);
+    if (currentStep === 2) {
+      setCurrentStep(1);
+    } else if (currentStep === 1) {
+      setCurrentStep(0);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (currentStep === 0) {
+      handleNext(e);
+      return;
+    }
     if (currentStep === 1) {
       handleNext(e);
       return;
@@ -131,7 +239,7 @@ export default function Register() {
     try {
       const dataToSend = { ...formData };
       // Nettoyer les champs vides
-      if (dataToSend.role !== 'AGENT' || !dataToSend.agentId) {
+      if (!dataToSend.agentId) {
         delete dataToSend.agentId;
       }
       if (!dataToSend.directionId) delete dataToSend.directionId;
@@ -150,7 +258,18 @@ export default function Register() {
         }, 2000);
       }
     } catch (err) {
-      const errorMessage = err.response?.data?.message || 'Erreur lors de l\'inscription';
+      console.error('Erreur lors de l\'inscription:', err);
+      // Extraire le message d'erreur de différentes façons possibles
+      let errorMessage = 'Erreur lors de l\'inscription';
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      } else if (err.message) {
+        errorMessage = err.message;
+      } else if (typeof err === 'string') {
+        errorMessage = err;
+      }
       setError(errorMessage);
       showError(errorMessage);
     } finally {
@@ -163,17 +282,20 @@ export default function Register() {
       {/* Left Column - Register Form */}
       <div className="w-full lg:w-1/2 bg-white flex flex-col justify-center px-6 sm:px-8 lg:px-12 xl:px-16 overflow-y-auto relative">
         {/* Logos - Fixed at top */}
-        <div className="absolute top-8 left-0 right-0 px-6 sm:px-8 lg:px-12 xl:px-16">
+        <div className="absolute top-12 left-0 right-0 px-6 sm:px-8 lg:px-12 xl:px-16">
           <div className="flex items-center justify-between">
-            <img src="/mef.png" alt="MEF" className="h-10 object-contain" />
-            <img src="/dncf.jpg" alt="DNCF" className="h-10 object-contain" />
+            <img src="/mef.png" alt="MEF" className="h-12 object-contain" />
+            <img src="/dncf.jpg" alt="DNCF" className="h-12 object-contain" />
           </div>
         </div>
 
         {/* Welcome Message */}
         <div className="mb-4 mt-24">
+          <Link to="/" className="text-sm text-teal-700 hover:text-teal-800 font-medium mb-3 inline-block">
+            ← Retour à l'accueil
+          </Link>
           <h1 className="text-2xl font-bold text-gray-900 mb-1">Créer un compte</h1>
-          <p className="text-gray-600 text-sm">
+          <p className="text-gray-600 text-sm mb-4">
             Inscrivez-vous pour accéder à la plateforme de gestion des mutations.
           </p>
         </div>
@@ -188,6 +310,16 @@ export default function Register() {
         {/* Progress Indicator */}
         <div className="mb-4">
           <div className="flex items-center justify-between mb-1.5 gap-2">
+            <div className={`flex items-center flex-shrink-0 ${currentStep >= 0 && agentFound ? 'text-teal-700' : currentStep === 0 ? 'text-teal-700' : 'text-gray-400'}`}>
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 ${
+                currentStep >= 0 && agentFound ? 'bg-teal-700 text-white' : currentStep === 0 ? 'bg-teal-700 text-white' : 'bg-gray-200 text-gray-500'
+              }`}>
+                {agentFound ? '✓' : '0'}
+              </div>
+              <span className="ml-1.5 text-xs font-medium whitespace-nowrap hidden sm:inline">Recherche agent</span>
+              <span className="ml-1.5 text-xs font-medium whitespace-nowrap sm:hidden">Recherche</span>
+            </div>
+            <div className={`flex-1 h-0.5 mx-2 sm:mx-3 flex-shrink ${currentStep >= 1 ? 'bg-teal-700' : 'bg-gray-200'}`}></div>
             <div className={`flex items-center flex-shrink-0 ${currentStep >= 1 ? 'text-teal-700' : 'text-gray-400'}`}>
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 ${
                 currentStep >= 1 ? 'bg-teal-700 text-white' : 'bg-gray-200 text-gray-500'
@@ -210,8 +342,90 @@ export default function Register() {
           </div>
         </div>
 
+        {/* Wizard d'inscription */}
+        <>
+
         {/* Register Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Step 0: Recherche Agent */}
+          {currentStep === 0 && (
+            <div className="space-y-3">
+              {/* Champs de recherche Agent */}
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                  <div className="sm:col-span-4">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Type <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={searchType}
+                      onChange={(e) => {
+                        setSearchType(e.target.value);
+                        setSearchValue('');
+                        setAgentFound(false);
+                        setAgentNotFound(false);
+                      }}
+                      disabled={agentFound}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent outline-none transition-all bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    >
+                      <option value="matricule">Matricule</option>
+                      <option value="npi">NPI</option>
+                      <option value="ifu">IFU</option>
+                    </select>
+                  </div>
+                  <div className="sm:col-span-6">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Valeur <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={searchValue}
+                      onChange={(e) => setSearchValue(e.target.value)}
+                      onBlur={searchAgentByIdentifier}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          searchAgentByIdentifier();
+                        }
+                      }}
+                      disabled={agentFound}
+                      placeholder={`Entrez votre ${searchType === 'matricule' ? 'matricule' : searchType === 'npi' ? 'NPI' : 'IFU'}`}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent outline-none transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <button
+                      type="button"
+                      onClick={searchAgentByIdentifier}
+                      disabled={searching || !searchValue || agentFound}
+                      className="w-full bg-teal-700 hover:bg-teal-800 text-white font-semibold py-2 px-4 text-sm rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    >
+                      {searching ? (
+                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+                {agentNotFound && (
+                  <div className="mt-3 bg-red-50 border-l-4 border-red-500 text-red-700 p-2 rounded text-xs">
+                    <p className="font-medium">Aucun agent trouvé avec ce {searchType === 'matricule' ? 'matricule' : searchType === 'npi' ? 'NPI' : 'IFU'}. Vous devez être enregistré dans le système pour créer un compte.</p>
+                  </div>
+                )}
+                {agentFound && (
+                  <div className="mt-3 bg-green-50 border-l-4 border-green-500 text-green-700 p-2 rounded text-xs">
+                    <p className="font-medium">Agent trouvé ! Veuillez compléter les informations ci-dessous pour créer votre compte.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Step 1: Informations personnelles */}
           {currentStep === 1 && (
             <div className="space-y-3">
@@ -224,7 +438,8 @@ export default function Register() {
                   name="nom"
                   value={formData.nom}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent outline-none transition-all"
+                  disabled={true}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent outline-none transition-all bg-gray-100 cursor-not-allowed"
                   placeholder="Entrez votre nom"
                 />
               </div>
@@ -238,7 +453,8 @@ export default function Register() {
                   name="prenom"
                   value={formData.prenom}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent outline-none transition-all"
+                  disabled={true}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent outline-none transition-all bg-gray-100 cursor-not-allowed"
                   placeholder="Entrez votre prénom"
                 />
               </div>
@@ -325,12 +541,13 @@ export default function Register() {
             <div className="space-y-3">
               {/* Direction */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Direction (optionnel)</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Direction</label>
                 <select
                   name="directionId"
                   value={formData.directionId}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent outline-none transition-all bg-white"
+                  disabled={true}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent outline-none transition-all bg-gray-100 cursor-not-allowed"
                 >
                   <option value="">Sélectionnez une direction</option>
                   {directions.map((direction) => (
@@ -343,13 +560,13 @@ export default function Register() {
 
               {/* Service */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Service (optionnel)</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Service</label>
                 <select
                   name="serviceId"
                   value={formData.serviceId}
                   onChange={handleChange}
-                  disabled={!formData.directionId}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent outline-none transition-all bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  disabled={true}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent outline-none transition-all bg-gray-100 cursor-not-allowed"
                 >
                   <option value="">Sélectionnez un service</option>
                   {filteredServices.map((service) => (
@@ -358,19 +575,17 @@ export default function Register() {
                     </option>
                   ))}
                 </select>
-                {!formData.directionId && (
-                  <p className="mt-0.5 text-xs text-gray-500">Veuillez d'abord sélectionner une direction</p>
-                )}
               </div>
 
               {/* Grade */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Grade (optionnel)</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Grade</label>
                 <select
                   name="gradeId"
                   value={formData.gradeId}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent outline-none transition-all bg-white"
+                  disabled={true}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent outline-none transition-all bg-gray-100 cursor-not-allowed"
                 >
                   <option value="">Sélectionnez un grade</option>
                   {grades.map((grade) => (
@@ -383,12 +598,13 @@ export default function Register() {
 
               {/* Poste */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Poste (optionnel)</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Poste</label>
                 <select
                   name="posteId"
                   value={formData.posteId}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent outline-none transition-all bg-white"
+                  disabled={true}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent outline-none transition-all bg-gray-100 cursor-not-allowed"
                 >
                   <option value="">Sélectionnez un poste</option>
                   {postes.map((poste) => (
@@ -400,28 +616,13 @@ export default function Register() {
               </div>
 
               {/* Agent ID (conditional) */}
-              {formData.role === 'AGENT' && (
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    ID Agent (optionnel)
-                  </label>
-                  <input
-                    type="text"
-                    name="agentId"
-                    value={formData.agentId}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent outline-none transition-all"
-                    placeholder="Entrez votre ID agent"
-                  />
-                  <p className="mt-0.5 text-xs text-gray-500">Si vous êtes un agent, entrez votre ID agent</p>
-                </div>
-              )}
+              {/* ID Agent est rempli automatiquement lors de la recherche d'agent et n'est pas modifiable */}
             </div>
           )}
 
           {/* Navigation Buttons */}
           <div className="flex gap-2 mt-4">
-            {currentStep === 2 && (
+            {(currentStep === 1 || currentStep === 2) && (
               <button
                 type="button"
                 onClick={handlePrevious}
@@ -432,10 +633,10 @@ export default function Register() {
             )}
             <button
               type="submit"
-              disabled={loading}
-              className={`${currentStep === 2 ? 'flex-1' : 'w-full'} bg-teal-700 hover:bg-teal-800 text-white font-semibold py-2 px-4 text-sm rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
+              disabled={loading || (currentStep === 0 && (!searchValue || searching))}
+              className={`${currentStep === 2 || currentStep === 1 ? 'flex-1' : 'w-full'} bg-teal-700 hover:bg-teal-800 text-white font-semibold py-2 px-4 text-sm rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
             >
-              {loading ? 'Inscription...' : currentStep === 1 ? 'Suivant' : "S'inscrire"}
+              {loading ? 'Inscription...' : currentStep === 0 ? 'Rechercher' : currentStep === 1 ? 'Suivant' : "S'inscrire"}
             </button>
           </div>
 
@@ -449,6 +650,7 @@ export default function Register() {
             </p>
           </div>
         </form>
+        </>
       </div>
 
       {/* Right Column - Marketing Section */}

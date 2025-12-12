@@ -52,6 +52,9 @@ export default function Login() {
 
         {/* Welcome Message */}
         <div className="mb-6">
+          <Link to="/" className="text-sm text-teal-700 hover:text-teal-800 font-medium mb-3 inline-block">
+            ← Retour à l'accueil
+          </Link>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Bienvenue !</h1>
           <p className="text-gray-600 text-base">
             Connectez-vous pour accéder à votre tableau de bord et continuer la gestion de vos mutations.
@@ -143,20 +146,13 @@ export default function Login() {
           </button>
 
           {/* Links */}
-          <div className="text-center mt-4 space-y-2">
-            <div>
-              <Link to="/auth/forgot-password" className="text-xs text-teal-700 hover:text-teal-800 font-semibold">
-                Mot de passe oublié ?
+          <div className="text-center mt-4">
+            <p className="text-xs text-gray-600">
+              Vous n'avez pas de compte ?{' '}
+              <Link to="/auth/register" className="text-teal-700 hover:text-teal-800 font-semibold">
+                S'inscrire
               </Link>
-            </div>
-            <div>
-              <p className="text-xs text-gray-600">
-                Vous n'avez pas de compte ?{' '}
-                <Link to="/auth/register" className="text-teal-700 hover:text-teal-800 font-semibold">
-                  S'inscrire
-                </Link>
-              </p>
-            </div>
+            </p>
           </div>
         </form>
       </div>

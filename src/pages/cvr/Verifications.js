@@ -160,7 +160,7 @@ export default function CVRVerifications() {
             <TableRow>
               <TableCell>Agent</TableCell>
               <TableCell>Motif</TableCell>
-              <TableCell>Poste souhaité</TableCell>
+              <TableCell>Nouveau poste</TableCell>
               <TableCell>Statut</TableCell>
               <TableCell>Date</TableCell>
               <TableCell>Actions</TableCell>

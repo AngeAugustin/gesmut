@@ -8,20 +8,14 @@ import {
   List,
   ListItem,
   ListItemText,
-  Avatar,
-  Chip,
 } from '@mui/material';
 import { CheckCircle as CheckCircleIcon } from '@mui/icons-material';
 
-const formatFileSize = (bytes) => {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1048576) return (bytes / 1024).toFixed(2) + ' Ko';
-  return (bytes / 1048576).toFixed(2) + ' Mo';
-};
-
-export default function Step5Recapitulatif({ formData, files, postes, localites, directions, services }) {
+export default function Step5Recapitulatif({ formData, postes, localites, directions, services }) {
   const selectedPoste = postes.find((p) => p._id === formData.posteSouhaiteId);
-  const selectedLocalite = localites.find((l) => l._id === formData.localisationSouhaiteId);
+  const selectedLocalites = (formData.localisationsSouhaitees || []).map((id) => 
+    localites.find((l) => l._id === id)
+  ).filter(Boolean);
   const selectedDirection = directions.find((d) => d._id === formData.directionId);
   const selectedService = services.find((s) => s._id === formData.serviceId);
 
@@ -41,7 +35,7 @@ export default function Step5Recapitulatif({ formData, files, postes, localites,
           <Grid item xs={12} sm={6}>
             <Typography variant="body2" color="text.secondary">Nom complet</Typography>
             <Typography variant="body1" fontWeight={600}>
-              {formData.nom} {formData.prenom} {formData.nomMariage && `(${formData.nomMariage})`}
+              {formData.nom} {formData.prenom}
             </Typography>
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -75,7 +69,7 @@ export default function Step5Recapitulatif({ formData, files, postes, localites,
               <List dense>
                 {formData.conjoints.map((c, i) => (
                   <ListItem key={i}>
-                    <ListItemText primary={`${c.nom} ${c.prenom}`} secondary={c.code || 'Sans code'} />
+                    <ListItemText primary={`${c.nom} ${c.prenom}`} />
                   </ListItem>
                 ))}
               </List>
@@ -89,7 +83,7 @@ export default function Step5Recapitulatif({ formData, files, postes, localites,
               <List dense>
                 {formData.enfants.map((e, i) => (
                   <ListItem key={i}>
-                    <ListItemText primary={`${e.nom} ${e.prenom}`} secondary={e.code || 'Sans code'} />
+                    <ListItemText primary={`${e.nom} ${e.prenom}`} />
                   </ListItem>
                 ))}
               </List>
@@ -110,44 +104,22 @@ export default function Step5Recapitulatif({ formData, files, postes, localites,
         <Grid container spacing={2}>
           {selectedPoste && (
             <Grid item xs={12} sm={6}>
-              <Typography variant="body2" color="text.secondary">Poste souhaité</Typography>
+              <Typography variant="body2" color="text.secondary">Nouveau poste</Typography>
               <Typography variant="body1" fontWeight={600}>
                 {selectedPoste.intitule} - {selectedPoste.localisationId?.libelle}
               </Typography>
             </Grid>
           )}
-          {selectedLocalite && (
+          {selectedLocalites.length > 0 && (
             <Grid item xs={12} sm={6}>
-              <Typography variant="body2" color="text.secondary">Localisation souhaitée</Typography>
-              <Typography variant="body1" fontWeight={600}>{selectedLocalite.libelle}</Typography>
+              <Typography variant="body2" color="text.secondary">Localisations souhaitées</Typography>
+              <Typography variant="body1" fontWeight={600}>
+                {selectedLocalites.map((l) => l.libelle).join(', ')}
+              </Typography>
             </Grid>
           )}
         </Grid>
       </Paper>
-
-      {files.length > 0 && (
-        <Paper variant="outlined" sx={{ p: 3 }}>
-          <Typography variant="h6" gutterBottom>Pièces justificatives</Typography>
-          <Divider sx={{ my: 2 }} />
-          <List>
-            {files.map((file, index) => (
-              <ListItem key={index}>
-                <ListItemText
-                  primary={file.name}
-                  secondary={
-                    <Chip
-                      label={formatFileSize(file.size)}
-                      size="small"
-                      variant="outlined"
-                      color={file.size > 3145728 ? 'error' : 'default'}
-                    />
-                  }
-                />
-              </ListItem>
-            ))}
-          </List>
-        </Paper>
-      )}
 
       <Box sx={{ mt: 3, p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
         <Typography variant="body2" color="info.dark">

@@ -13,10 +13,11 @@ import {
   Paper,
   IconButton,
   Alert,
+  Typography,
 } from '@mui/material';
 import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
 
-export default function Step2Famille({
+export default function Step2AgentFamille({
   formData,
   setFormData,
   conjointForm,
@@ -30,12 +31,18 @@ export default function Step2Famille({
 }) {
   return (
     <Box sx={{ py: 2 }}>
+      <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
+        Informations familiales
+      </Typography>
+
       {/* Conjoints */}
       <Box sx={{ mb: 4 }}>
         <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600 }}>Conjoints</h3>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            Conjoints
+          </Typography>
         </Box>
-        {formData.sexe === 'F' && formData.conjoints.length >= 1 && (
+        {formData.sexe === 'F' && formData.conjoints && formData.conjoints.length >= 1 && (
           <Alert severity="info" sx={{ mb: 2 }}>
             Pour le sexe Féminin, vous ne pouvez ajouter qu'un seul conjoint.
           </Alert>
@@ -47,7 +54,7 @@ export default function Step2Famille({
               label="Nom *"
               value={conjointForm.nom}
               onChange={(e) => setConjointForm({ ...conjointForm, nom: e.target.value })}
-              disabled={formData.sexe === 'F' && formData.conjoints.length >= 1}
+              disabled={formData.sexe === 'F' && formData.conjoints && formData.conjoints.length >= 1}
             />
           </Grid>
           <Grid item xs={12} sm={4}>
@@ -56,7 +63,7 @@ export default function Step2Famille({
               label="Prénom *"
               value={conjointForm.prenom}
               onChange={(e) => setConjointForm({ ...conjointForm, prenom: e.target.value })}
-              disabled={formData.sexe === 'F' && formData.conjoints.length >= 1}
+              disabled={formData.sexe === 'F' && formData.conjoints && formData.conjoints.length >= 1}
             />
           </Grid>
           <Grid item xs={12} sm={4}>
@@ -68,7 +75,7 @@ export default function Step2Famille({
               disabled={
                 !conjointForm.nom ||
                 !conjointForm.prenom ||
-                (formData.sexe === 'F' && formData.conjoints.length >= 1)
+                (formData.sexe === 'F' && formData.conjoints && formData.conjoints.length >= 1)
               }
               sx={{ height: '56px' }}
             >
@@ -86,7 +93,7 @@ export default function Step2Famille({
               </TableRow>
             </TableHead>
             <TableBody>
-              {formData.conjoints.length === 0 ? (
+              {!formData.conjoints || formData.conjoints.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={3} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                     Aucun conjoint ajouté
@@ -117,7 +124,9 @@ export default function Step2Famille({
       {/* Enfants */}
       <Box>
         <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600 }}>Enfants</h3>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            Enfants
+          </Typography>
         </Box>
         <Grid container spacing={2} sx={{ mb: 2 }}>
           <Grid item xs={12} sm={4}>
@@ -159,7 +168,7 @@ export default function Step2Famille({
               </TableRow>
             </TableHead>
             <TableBody>
-              {formData.enfants.length === 0 ? (
+              {!formData.enfants || formData.enfants.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={3} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                     Aucun enfant ajouté
@@ -189,3 +198,4 @@ export default function Step2Famille({
     </Box>
   );
 }
+

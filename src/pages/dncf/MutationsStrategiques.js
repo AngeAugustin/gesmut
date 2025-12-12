@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -18,8 +19,12 @@ import {
   Paper,
   Chip,
   InputAdornment,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { demandesService } from '../../services/demandesService';
 import { agentsService } from '../../services/agentsService';
 import { postesService } from '../../services/postesService';
@@ -37,6 +42,7 @@ const calculerAnciennete = (dateEmbauche) => {
 };
 
 export default function DNCFMutationsStrategiques() {
+  const navigate = useNavigate();
   const { success, error, warning } = useToast();
   const [agents, setAgents] = useState([]);
   const [filteredAgents, setFilteredAgents] = useState([]);
@@ -47,12 +53,15 @@ export default function DNCFMutationsStrategiques() {
   const [grades, setGrades] = useState([]);
   const [services, setServices] = useState([]);
   const [directions, setDirections] = useState([]);
+  const [competences, setCompetences] = useState([]);
   const [filters, setFilters] = useState({
     recherche: '',
     directionId: '',
     serviceId: '',
     gradeId: '',
     ancienneteMin: '',
+    competenceId: '',
+    niveauCompetence: '',
   });
   const [formData, setFormData] = useState({
     posteSouhaiteId: '',
@@ -63,13 +72,14 @@ export default function DNCFMutationsStrategiques() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [agentsRes, postesRes, localitesRes, gradesRes, servicesRes, directionsRes] = await Promise.all([
+        const [agentsRes, postesRes, localitesRes, gradesRes, servicesRes, directionsRes, competencesRes] = await Promise.all([
           agentsService.getAll(),
           postesService.getAll(),
           referentielsService.getLocalites(),
           referentielsService.getGrades(),
           referentielsService.getServices(),
           referentielsService.getDirections(),
+          referentielsService.getCompetences(),
         ]);
         setAgents(agentsRes.data || []);
         setFilteredAgents(agentsRes.data || []);
@@ -78,6 +88,7 @@ export default function DNCFMutationsStrategiques() {
         setGrades(gradesRes.data);
         setServices(servicesRes.data);
         setDirections(directionsRes.data);
+        setCompetences(competencesRes.data || []);
       } catch (error) {
         console.error('Erreur', error);
         error('Erreur lors du chargement des données');
@@ -135,8 +146,37 @@ export default function DNCFMutationsStrategiques() {
       });
     }
 
+    // Filtre par compétence
+    if (filters.competenceId) {
+      filtered = filtered.filter((a) => {
+        if (!a.competences || a.competences.length === 0) return false;
+        // Trouver la compétence dans le référentiel pour obtenir son libellé
+        const competenceRef = competences.find((c) => c._id === filters.competenceId);
+        if (!competenceRef) return false;
+        // Vérifier si l'agent a cette compétence (par nom/libellé)
+        const aLaCompetence = a.competences.some(
+          (comp) => comp.nom === competenceRef.libelle || comp.nom === competenceRef.code
+        );
+        if (!aLaCompetence) return false;
+        // Si un niveau est spécifié, vérifier aussi le niveau
+        if (filters.niveauCompetence) {
+          const competenceAgent = a.competences.find(
+            (comp) => comp.nom === competenceRef.libelle || comp.nom === competenceRef.code
+          );
+          return competenceAgent?.niveau === filters.niveauCompetence;
+        }
+        return true;
+      });
+    } else if (filters.niveauCompetence) {
+      // Si seulement le niveau est spécifié sans compétence précise
+      filtered = filtered.filter((a) => {
+        if (!a.competences || a.competences.length === 0) return false;
+        return a.competences.some((comp) => comp.niveau === filters.niveauCompetence);
+      });
+    }
+
     setFilteredAgents(filtered);
-  }, [agents, filters]);
+  }, [agents, filters, competences]);
 
   const handleOpenDialog = (agent) => {
     setSelectedAgent(agent);
@@ -159,8 +199,8 @@ export default function DNCFMutationsStrategiques() {
   };
 
   const handleCreate = async () => {
-    if (!selectedAgent || !formData.motif) {
-      warning('Veuillez remplir tous les champs obligatoires');
+    if (!selectedAgent || !formData.motif || !formData.posteSouhaiteId) {
+      warning('Veuillez remplir tous les champs obligatoires (nouveau poste et motif)');
       return;
     }
     try {
@@ -218,6 +258,42 @@ export default function DNCFMutationsStrategiques() {
       (g) => g._id === (agent.gradeId?._id || agent.gradeId)
     );
     return grade?.libelle || '-';
+  };
+
+  // Obtenir les IDs des postes déjà occupés par l'agent
+  const getPostesDejaOccupes = (agent) => {
+    if (!agent || !agent.affectationsPostes || agent.affectationsPostes.length === 0) {
+      return [];
+    }
+    return agent.affectationsPostes
+      .map((affectation) => {
+        // Le posteId peut être un objet (populé) ou un string (ID)
+        if (typeof affectation.posteId === 'object' && affectation.posteId !== null) {
+          return affectation.posteId._id || affectation.posteId;
+        }
+        return affectation.posteId;
+      })
+      .filter((id) => id != null);
+  };
+
+  // Formater l'affichage des compétences d'un agent
+  const getCompetencesDisplay = (agent) => {
+    if (!agent || !agent.competences || agent.competences.length === 0) {
+      return '-';
+    }
+    return (
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+        {agent.competences.map((competence, index) => (
+          <Chip
+            key={index}
+            label={`${competence.nom}${competence.niveau ? ` (${competence.niveau})` : ''}`}
+            size="small"
+            variant="outlined"
+            sx={{ fontSize: '0.75rem' }}
+          />
+        ))}
+      </Box>
+    );
   };
 
   return (
@@ -317,6 +393,39 @@ export default function DNCFMutationsStrategiques() {
             sx={{ minWidth: 180 }}
             inputProps={{ min: 0 }}
           />
+          <TextField
+            select
+            label="Compétence"
+            value={filters.competenceId}
+            onChange={(e) =>
+              setFilters({ ...filters, competenceId: e.target.value })
+            }
+            size="small"
+            sx={{ minWidth: 200 }}
+          >
+            <MenuItem value="">Toutes</MenuItem>
+            {competences.map((competence) => (
+              <MenuItem key={competence._id} value={competence._id}>
+                {competence.libelle}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="Niveau de compétence"
+            value={filters.niveauCompetence}
+            onChange={(e) =>
+              setFilters({ ...filters, niveauCompetence: e.target.value })
+            }
+            size="small"
+            sx={{ minWidth: 200 }}
+            disabled={!filters.competenceId}
+          >
+            <MenuItem value="">Tous les niveaux</MenuItem>
+            <MenuItem value="Passable">Passable</MenuItem>
+            <MenuItem value="Moyen">Moyen</MenuItem>
+            <MenuItem value="Bon">Bon</MenuItem>
+          </TextField>
           <Button
             variant="outlined"
             onClick={() =>
@@ -326,6 +435,8 @@ export default function DNCFMutationsStrategiques() {
                 serviceId: '',
                 gradeId: '',
                 ancienneteMin: '',
+                competenceId: '',
+                niveauCompetence: '',
               })
             }
             sx={{ minWidth: 120 }}
@@ -340,7 +451,6 @@ export default function DNCFMutationsStrategiques() {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Action</TableCell>
               <TableCell>Matricule</TableCell>
               <TableCell>Nom & Prénom</TableCell>
               <TableCell>Direction</TableCell>
@@ -348,12 +458,14 @@ export default function DNCFMutationsStrategiques() {
               <TableCell>Grade</TableCell>
               <TableCell>Ancienneté</TableCell>
               <TableCell>Localisation actuelle</TableCell>
+              <TableCell>Compétences</TableCell>
+              <TableCell>Action</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {filteredAgents.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} align="center">
+                <TableCell colSpan={9} align="center">
                   <Typography variant="body2" color="text.secondary">
                     Aucun agent trouvé
                   </Typography>
@@ -364,15 +476,6 @@ export default function DNCFMutationsStrategiques() {
                 .filter((agent) => agent != null && agent._id)
                 .map((agent) => (
                   <TableRow key={agent._id} hover>
-                    <TableCell>
-                      <Button
-                        variant="contained"
-                        size="small"
-                        onClick={() => handleOpenDialog(agent)}
-                      >
-                        Muter
-                      </Button>
-                    </TableCell>
                     <TableCell>{agent?.matricule || '-'}</TableCell>
                     <TableCell>
                       {agent?.nom || ''} {agent?.prenom || ''}
@@ -387,6 +490,29 @@ export default function DNCFMutationsStrategiques() {
                       {agent?.localisationActuelleId?.libelle ||
                         agent?.localisationActuelleId ||
                         '-'}
+                    </TableCell>
+                    <TableCell>
+                      {getCompetencesDisplay(agent)}
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                          variant="contained"
+                          size="small"
+                          onClick={() => handleOpenDialog(agent)}
+                        >
+                          Muter
+                        </Button>
+                        <Tooltip title="Voir les détails">
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={() => navigate(`/dncf/agents/${agent._id}`)}
+                          >
+                            <VisibilityIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
                     </TableCell>
                   </TableRow>
                 ))
@@ -428,19 +554,36 @@ export default function DNCFMutationsStrategiques() {
             <TextField
               fullWidth
               select
-              label="Poste souhaité"
+              label="Nouveau poste"
               value={formData.posteSouhaiteId}
               onChange={(e) =>
                 setFormData({ ...formData, posteSouhaiteId: e.target.value })
               }
+              required
               sx={{ mb: 2 }}
+              error={!formData.posteSouhaiteId}
+              helperText={!formData.posteSouhaiteId ? 'Le nouveau poste est obligatoire' : ''}
             >
-              <MenuItem value="">Aucun</MenuItem>
-              {postes.map((poste) => (
-                <MenuItem key={poste._id} value={poste._id}>
-                  {poste.intitule} - {poste.localisationId?.libelle}
-                </MenuItem>
-              ))}
+              {postes.map((poste) => {
+                const postesDejaOccupes = getPostesDejaOccupes(selectedAgent);
+                const estDejaOccupe = postesDejaOccupes.some(
+                  (id) => id.toString() === poste._id.toString()
+                );
+                return (
+                  <MenuItem key={poste._id} value={poste._id}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                      <Typography sx={{ flex: 1 }}>
+                        {poste.intitule} - {poste.localisationId?.libelle}
+                      </Typography>
+                      {estDejaOccupe && (
+                        <Tooltip title="Poste déjà occupé par cet agent">
+                          <CheckCircleIcon sx={{ color: 'success.main', fontSize: 20 }} />
+                        </Tooltip>
+                      )}
+                    </Box>
+                  </MenuItem>
+                );
+              })}
             </TextField>
 
             <TextField
@@ -482,7 +625,7 @@ export default function DNCFMutationsStrategiques() {
           <Button
             onClick={handleCreate}
             variant="contained"
-            disabled={!formData.motif}
+            disabled={!formData.motif || !formData.posteSouhaiteId}
           >
             Créer la mutation
           </Button>

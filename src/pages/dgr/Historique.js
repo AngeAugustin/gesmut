@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Box, TextField, MenuItem, Button, Typography } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import FilterListIcon from '@mui/icons-material/FilterList';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import { validationsService } from '../../services/validationsService';
 import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
 import DataTable from '../../components/common/DataTable';
 import StatusChip from '../../components/common/StatusChip';
@@ -13,6 +15,7 @@ import { saveAs } from 'file-saver';
 
 export default function Historique() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [validations, setValidations] = useState([]);
   const [filteredValidations, setFilteredValidations] = useState([]);
   const [filters, setFilters] = useState({
@@ -213,6 +216,30 @@ export default function Historique() {
     },
   ];
 
+  const actions = (row) => {
+    // Récupérer l'ID de la demande
+    const demande = row.demandeId;
+    let demandeId = null;
+    
+    if (demande) {
+      // Si demandeId est un objet, prendre son _id, sinon c'est déjà un string
+      demandeId = typeof demande === 'object' ? (demande._id || demande) : demande;
+    }
+    
+    const actionsList = [];
+    
+    // Ajouter le bouton "Voir détails" seulement si on a un ID de demande valide
+    if (demandeId) {
+      actionsList.push({
+        icon: <VisibilityIcon />,
+        tooltip: 'Voir les détails de la demande',
+        onClick: () => navigate(`/dgr/demandes/${demandeId}`),
+      });
+    }
+    
+    return actionsList;
+  };
+
   return (
     <Box>
       <PageHeader
@@ -282,6 +309,7 @@ export default function Historique() {
           commentaire: v.commentaire,
           ...v,
         }))}
+        actions={actions}
         emptyMessage="Aucun avis dans l'historique"
       />
     </Box>

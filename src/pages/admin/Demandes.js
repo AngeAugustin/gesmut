@@ -78,9 +78,19 @@ export default function AdminDemandes() {
       const poste = typeof demande.posteSouhaiteId === 'object' && demande.posteSouhaiteId !== null
         ? (demande.posteSouhaiteId.intitule || '').toLowerCase()
         : '';
-      const localisation = typeof demande.localisationSouhaiteId === 'object' && demande.localisationSouhaiteId !== null
-        ? (demande.localisationSouhaiteId.libelle || '').toLowerCase()
-        : '';
+      // Gérer les localisations multiples (nouveau) ou unique (ancien pour compatibilité)
+      const localisations = demande.localisationsSouhaitees || (demande.localisationSouhaiteId ? [demande.localisationSouhaiteId] : []);
+      const localisationsLibelles = Array.isArray(localisations)
+        ? localisations
+            .map((loc) => {
+              if (typeof loc === 'object' && loc !== null) {
+                return loc.libelle || '';
+              }
+              return '';
+            })
+            .filter((lib) => lib !== '')
+        : [];
+      const localisation = localisationsLibelles.join(' ').toLowerCase();
       const statut = getStatusLabel(demande.statut).toLowerCase();
       const search = searchTerm.toLowerCase();
 
@@ -126,8 +136,8 @@ export default function AdminDemandes() {
               <TableCell><strong>Agent</strong></TableCell>
               <TableCell><strong>Type</strong></TableCell>
               <TableCell><strong>Motif</strong></TableCell>
-              <TableCell><strong>Poste souhaité</strong></TableCell>
-              <TableCell><strong>Localisation souhaitée</strong></TableCell>
+              <TableCell><strong>Nouveau poste</strong></TableCell>
+              <TableCell><strong>Localisation(s) souhaitée(s)</strong></TableCell>
               <TableCell><strong>Statut</strong></TableCell>
               <TableCell><strong>Date de soumission</strong></TableCell>
               <TableCell><strong>Actions</strong></TableCell>
@@ -165,10 +175,19 @@ export default function AdminDemandes() {
                   ? poste.intitule
                   : '-';
                 
-                const localisation = demande.localisationSouhaiteId;
-                const localisationLibelle = typeof localisation === 'object' && localisation !== null
-                  ? localisation.libelle
-                  : '-';
+                // Gérer les localisations multiples (nouveau) ou unique (ancien pour compatibilité)
+                const localisations = demande.localisationsSouhaitees || (demande.localisationSouhaiteId ? [demande.localisationSouhaiteId] : []);
+                const localisationsLibelles = Array.isArray(localisations)
+                  ? localisations
+                      .map((loc) => {
+                        if (typeof loc === 'object' && loc !== null) {
+                          return loc.libelle || '-';
+                        }
+                        return '-';
+                      })
+                      .filter((lib) => lib !== '-')
+                  : [];
+                const localisationLibelle = localisationsLibelles.length > 0 ? localisationsLibelles.join(', ') : '-';
 
                 return (
                 <TableRow key={demande._id} hover>

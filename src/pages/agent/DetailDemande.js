@@ -148,7 +148,7 @@ export default function DetailDemande() {
               </Grid>
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" color="text.secondary">
-                  Poste souhaité
+                  Nouveau poste
                 </Typography>
                 <Typography variant="body1">
                   {typeof demande.posteSouhaiteId === 'object' && demande.posteSouhaiteId !== null
@@ -158,12 +158,23 @@ export default function DetailDemande() {
               </Grid>
               <Grid item xs={12} sm={6}>
                 <Typography variant="body2" color="text.secondary">
-                  Localisation souhaitée
+                  Localisation{((demande.localisationsSouhaitees?.length || 0) > 1 || (demande.localisationSouhaiteId && !demande.localisationsSouhaitees)) ? 's' : ''} souhaitée{((demande.localisationsSouhaitees?.length || 0) > 1 || (demande.localisationSouhaiteId && !demande.localisationsSouhaitees)) ? 's' : ''}
                 </Typography>
                 <Typography variant="body1">
-                  {typeof demande.localisationSouhaiteId === 'object' && demande.localisationSouhaiteId !== null
-                    ? demande.localisationSouhaiteId.libelle || '-'
-                    : '-'}
+                  {(() => {
+                    const localisations = demande.localisationsSouhaitees || (demande.localisationSouhaiteId ? [demande.localisationSouhaiteId] : []);
+                    const libelles = Array.isArray(localisations)
+                      ? localisations
+                          .map((loc) => {
+                            if (typeof loc === 'object' && loc !== null) {
+                              return loc.libelle || '-';
+                            }
+                            return '-';
+                          })
+                          .filter((lib) => lib !== '-')
+                      : [];
+                    return libelles.length > 0 ? libelles.join(', ') : '-';
+                  })()}
                 </Typography>
               </Grid>
               <Grid item xs={12} sm={6}>

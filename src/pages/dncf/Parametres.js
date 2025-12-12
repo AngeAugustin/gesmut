@@ -56,8 +56,13 @@ export default function DNCFParametres() {
   const handleSignatureChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (!file.type.startsWith('image/')) {
-        setError('Le fichier de signature doit être une image');
+      // Vérifier le type MIME
+      const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+      const fileExtension = file.name.split('.').pop()?.toLowerCase();
+      const allowedExtensions = ['jpg', 'jpeg', 'png'];
+      
+      if (!allowedMimeTypes.includes(file.type) || !allowedExtensions.includes(fileExtension)) {
+        setError('Le fichier de signature doit être au format JPG, JPEG ou PNG');
         return;
       }
       if (file.size > 3145728) {
@@ -77,8 +82,13 @@ export default function DNCFParametres() {
   const handleCachetChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (!file.type.startsWith('image/')) {
-        setError('Le fichier de cachet doit être une image');
+      // Vérifier le type MIME
+      const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+      const fileExtension = file.name.split('.').pop()?.toLowerCase();
+      const allowedExtensions = ['jpg', 'jpeg', 'png'];
+      
+      if (!allowedMimeTypes.includes(file.type) || !allowedExtensions.includes(fileExtension)) {
+        setError('Le fichier de cachet doit être au format JPG, JPEG ou PNG');
         return;
       }
       if (file.size > 3145728) {
@@ -106,7 +116,7 @@ export default function DNCFParametres() {
     setSuccess('');
 
     try {
-      const uploadRes = await uploadService.uploadFile(signatureFile);
+      const uploadRes = await uploadService.uploadImage(signatureFile);
       await usersService.update(user.id, {
         signatureImageId: uploadRes.fileId,
       });
@@ -132,7 +142,7 @@ export default function DNCFParametres() {
     setSuccess('');
 
     try {
-      const uploadRes = await uploadService.uploadFile(cachetFile);
+      const uploadRes = await uploadService.uploadImage(cachetFile);
       await usersService.update(user.id, {
         cachetImageId: uploadRes.fileId,
       });
@@ -174,8 +184,11 @@ export default function DNCFParametres() {
               <Typography variant="h6" gutterBottom>
                 Signature
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                 Uploadez votre signature. Elle sera utilisée automatiquement lors de la génération des documents.
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+                Formats acceptés : JPG, JPEG, PNG uniquement (Taille maximale : 3 Mo)
               </Typography>
 
               <Box sx={{ mb: 2 }}>
@@ -219,7 +232,7 @@ export default function DNCFParametres() {
               </Box>
 
               <input
-                accept="image/*"
+                accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                 style={{ display: 'none' }}
                 id="signature-upload"
                 type="file"
@@ -266,8 +279,11 @@ export default function DNCFParametres() {
               <Typography variant="h6" gutterBottom>
                 Cachet
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                 Uploadez votre cachet. Il sera utilisé automatiquement lors de la génération des documents.
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
+                Formats acceptés : JPG, JPEG, PNG uniquement (Taille maximale : 3 Mo)
               </Typography>
 
               <Box sx={{ mb: 2 }}>
@@ -311,7 +327,7 @@ export default function DNCFParametres() {
               </Box>
 
               <input
-                accept="image/*"
+                accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                 style={{ display: 'none' }}
                 id="cachet-upload"
                 type="file"

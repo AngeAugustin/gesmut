@@ -1,4 +1,15 @@
 import api from './api';
+import axios from 'axios';
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+
+// Instance axios publique pour les appels sans authentification
+const publicApi = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
 
 export const agentsService = {
   getAll: () => api.get('/agents'),
@@ -9,5 +20,8 @@ export const agentsService = {
   update: (id, data) => api.patch(`/agents/${id}`, data),
   delete: (id) => api.delete(`/agents/${id}`),
   findEligibles: (criteres) => api.post('/agents/eligibles', criteres),
+  findByMatriculePublic: (matricule) => publicApi.get(`/agents/public/search/matricule/${matricule}`),
+  findByIdentifierPublic: (type, value) => publicApi.get(`/agents/public/search/${type}/${value}`),
+  getAllAffectations: () => api.get('/agents/affectations/all'),
 };
 

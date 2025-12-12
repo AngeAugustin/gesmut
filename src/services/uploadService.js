@@ -27,6 +27,19 @@ export const uploadService = {
     return response.data;
   },
 
+  uploadImage: async (file) => {
+    // Endpoint spécifique pour les images (signature, cachet) avec validation stricte JPG/JPEG/PNG
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await api.post('/upload/image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
   getFile: (fileId) => {
     return `${API_URL}/upload/${fileId}`;
   },

@@ -27,7 +27,8 @@
     "start:local": "set HOST=localhost && react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "generate-test-agents": "node scripts/generateTestAgents.js"
   },
   "eslintConfig": {
     "extends": [

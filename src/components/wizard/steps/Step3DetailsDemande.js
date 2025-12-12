@@ -1,7 +1,38 @@
-import React from 'react';
-import { Box, Grid, TextField, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import React, { useState } from 'react';
+import { 
+  Box, 
+  Grid, 
+  TextField, 
+  FormControl, 
+  InputLabel, 
+  Select, 
+  MenuItem,
+  FormControlLabel,
+  Checkbox,
+  Paper,
+  Typography,
+  Divider,
+  OutlinedInput
+} from '@mui/material';
 
 export default function Step3DetailsDemande({ formData, setFormData, postes, localites }) {
+  const [openLocalisations, setOpenLocalisations] = useState(false);
+
+  const handleLocalisationChange = (localiteId) => {
+    const currentLocalisations = formData.localisationsSouhaitees || [];
+    if (currentLocalisations.includes(localiteId)) {
+      setFormData({
+        ...formData,
+        localisationsSouhaitees: currentLocalisations.filter((id) => id !== localiteId),
+      });
+    } else {
+      setFormData({
+        ...formData,
+        localisationsSouhaitees: [...currentLocalisations, localiteId],
+      });
+    }
+  };
+
   return (
     <Box sx={{ py: 2 }}>
       <Grid container spacing={3}>
@@ -20,10 +51,10 @@ export default function Step3DetailsDemande({ formData, setFormData, postes, loc
         </Grid>
         <Grid item xs={12} md={6}>
           <FormControl fullWidth>
-            <InputLabel>Poste souhaité</InputLabel>
+            <InputLabel>Nouveau poste</InputLabel>
             <Select
               value={formData.posteSouhaiteId}
-              label="Poste souhaité"
+              label="Nouveau poste"
               onChange={(e) => setFormData({ ...formData, posteSouhaiteId: e.target.value })}
             >
               <MenuItem value="">Aucun</MenuItem>
@@ -37,15 +68,42 @@ export default function Step3DetailsDemande({ formData, setFormData, postes, loc
         </Grid>
         <Grid item xs={12} md={6}>
           <FormControl fullWidth>
-            <InputLabel>Localisation souhaitée</InputLabel>
+            <InputLabel>Localisations souhaitées</InputLabel>
             <Select
-              value={formData.localisationSouhaiteId}
-              label="Localisation souhaitée"
-              onChange={(e) => setFormData({ ...formData, localisationSouhaiteId: e.target.value })}
+              multiple
+              open={openLocalisations}
+              onClose={() => setOpenLocalisations(false)}
+              onOpen={() => setOpenLocalisations(true)}
+              value={formData.localisationsSouhaitees || []}
+              input={<OutlinedInput label="Localisations souhaitées" />}
+              renderValue={(selected) => {
+                if (selected.length === 0) return 'Aucune localisation sélectionnée';
+                if (selected.length === 1) {
+                  const localite = localites.find((l) => l._id === selected[0]);
+                  return localite?.libelle || selected[0];
+                }
+                return `${selected.length} localisation(s) sélectionnée(s)`;
+              }}
+              MenuProps={{
+                PaperProps: {
+                  style: {
+                    maxHeight: 400,
+                  },
+                },
+              }}
             >
-              <MenuItem value="">Aucune</MenuItem>
               {localites.map((localite) => (
-                <MenuItem key={localite._id} value={localite._id}>
+                <MenuItem
+                  key={localite._id}
+                  value={localite._id}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleLocalisationChange(localite._id);
+                  }}
+                >
+                  <Checkbox
+                    checked={(formData.localisationsSouhaitees || []).includes(localite._id)}
+                  />
                   {localite.libelle}
                 </MenuItem>
               ))}

@@ -63,7 +63,7 @@ export default function DGRRapports() {
         Agent: agentNom || '-',
         Matricule: agentMatricule || '-',
         Motif: d.motif || '',
-        'Poste souhaité': posteLibelle,
+        'Nouveau poste': posteLibelle,
         Statut: d.statut,
         Type: d.type,
       };
@@ -111,7 +111,7 @@ export default function DGRRapports() {
     },
     {
       id: 'poste',
-      label: 'Poste souhaité',
+      label: 'Nouveau poste',
       render: (value, row) => {
         const poste = row.posteSouhaiteId;
         return typeof poste === 'object' && poste !== null

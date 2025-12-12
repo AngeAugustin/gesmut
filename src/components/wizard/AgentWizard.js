@@ -4,7 +4,6 @@ import {
   Stepper,
   Step,
   StepLabel,
-  StepContent,
   Button,
   Paper,
   Typography,
@@ -13,7 +12,8 @@ import {
 import {
   Person as PersonIcon,
   FamilyRestroom as FamilyIcon,
-  Description as DescriptionIcon,
+  Work as WorkIcon,
+  School as SchoolIcon,
   CheckCircle as CheckCircleIcon,
 } from '@mui/icons-material';
 
@@ -21,26 +21,31 @@ const steps = [
   {
     label: 'Informations personnelles',
     icon: <PersonIcon />,
-    description: 'Vos informations de base et coordonnées',
+    description: 'Identité et coordonnées de l\'agent',
   },
   {
-    label: 'Famille',
+    label: 'Informations familiales',
     icon: <FamilyIcon />,
     description: 'Conjoints et enfants',
   },
   {
-    label: 'Détails de la demande',
-    icon: <DescriptionIcon />,
-    description: 'Motif et préférences',
+    label: 'Informations professionnelles',
+    icon: <WorkIcon />,
+    description: 'Grade, statut, poste et localisation',
+  },
+  {
+    label: 'Diplômes et compétences',
+    icon: <SchoolIcon />,
+    description: 'Formation et compétences de l\'agent',
   },
   {
     label: 'Récapitulatif',
     icon: <CheckCircleIcon />,
-    description: 'Vérification avant envoi',
+    description: 'Vérification avant création',
   },
 ];
 
-export default function DemandeWizard({
+export default function AgentWizard({
   activeStep = 0,
   onStepChange,
   onNext,
@@ -50,6 +55,7 @@ export default function DemandeWizard({
   canProceed = true,
   children,
   showNavigation = true,
+  isEditMode = false,
 }) {
   const handleNext = () => {
     if (onNext) {
@@ -73,52 +79,60 @@ export default function DemandeWizard({
         {/* Header */}
         <Box sx={{ mb: 4, textAlign: 'center' }}>
           <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
-            Demande de mutation
+            {isEditMode ? 'Modifier l\'agent' : 'Ajouter un nouvel agent'}
           </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Remplissez toutes les étapes pour soumettre votre demande
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+            {isEditMode 
+              ? 'Modifiez les informations de l\'agent dans les étapes ci-dessous'
+              : 'Remplissez toutes les étapes pour créer le profil de l\'agent'}
           </Typography>
         </Box>
 
-        {/* Stepper */}
-        <Stepper activeStep={activeStep} orientation="vertical" sx={{ mb: 4 }}>
-          {steps.map((step, index) => (
-            <Step key={step.label} completed={index < activeStep} active={index === activeStep}>
-              <StepLabel
-                StepIconComponent={() => (
-                  <Box
-                    sx={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      bgcolor: index < activeStep ? 'success.main' : index === activeStep ? 'primary.main' : 'grey.300',
-                      color: index <= activeStep ? 'white' : 'grey.600',
-                      fontWeight: 'bold',
-                      fontSize: '1.2rem',
+        {/* Stepper horizontal */}
+        <Box sx={{ mb: 4, overflowX: 'auto', px: 2 }}>
+          <Stepper activeStep={activeStep} orientation="horizontal" sx={{ minWidth: 800 }}>
+            {steps.map((step, index) => (
+              <Step key={step.label} completed={index < activeStep} active={index === activeStep}>
+                <StepLabel
+                  StepIconComponent={() => (
+                    <Box
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        bgcolor: index < activeStep ? 'success.main' : index === activeStep ? 'primary.main' : 'grey.300',
+                        color: index <= activeStep ? 'white' : 'grey.600',
+                        fontWeight: 'bold',
+                        fontSize: '1.2rem',
+                      }}
+                    >
+                      {index < activeStep ? <CheckCircleIcon /> : step.icon}
+                    </Box>
+                  )}
+                >
+                  <Typography 
+                    variant="subtitle2" 
+                    sx={{ 
+                      fontWeight: index === activeStep ? 700 : 500, 
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                      textAlign: 'center',
                     }}
                   >
-                    {index < activeStep ? <CheckCircleIcon /> : step.icon}
-                  </Box>
-                )}
-              >
-                <Typography variant="h6" sx={{ fontWeight: index === activeStep ? 700 : 500 }}>
-                  {step.label}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                  {step.description}
-                </Typography>
-              </StepLabel>
-              <StepContent>
-                <Box sx={{ mt: 2, mb: 4, minHeight: 200 }}>
-                  {index === activeStep && children}
-                </Box>
-              </StepContent>
-            </Step>
-          ))}
-        </Stepper>
+                    {step.label}
+                  </Typography>
+                </StepLabel>
+              </Step>
+            ))}
+          </Stepper>
+        </Box>
+
+        {/* Contenu de l'étape active */}
+        <Box sx={{ mt: 4, mb: 4, minHeight: 300 }}>
+          {children}
+        </Box>
 
         {/* Navigation */}
         {showNavigation && (
@@ -152,10 +166,10 @@ export default function DemandeWizard({
                   {loading ? (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <CircularProgress size={20} color="inherit" />
-                      <span>Envoi...</span>
+                      <span>{isEditMode ? 'Modification...' : 'Création...'}</span>
                     </Box>
                   ) : (
-                    'Soumettre la demande'
+                    isEditMode ? 'Modifier l\'agent' : 'Créer l\'agent'
                   )}
                 </Button>
               ) : (
@@ -202,3 +216,4 @@ export default function DemandeWizard({
     </Box>
   );
 }
+

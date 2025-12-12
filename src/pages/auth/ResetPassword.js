@@ -63,10 +63,10 @@ export default function ResetPassword() {
       {/* Left Column - Reset Password Form */}
       <div className="w-full lg:w-1/2 bg-white flex flex-col justify-center px-6 sm:px-8 lg:px-12 xl:px-16 relative">
         {/* Logos - Fixed at top */}
-        <div className="absolute top-8 left-0 right-0 px-6 sm:px-8 lg:px-12 xl:px-16">
+        <div className="absolute top-12 left-0 right-0 px-6 sm:px-8 lg:px-12 xl:px-16">
           <div className="flex items-center justify-between">
-            <img src="/mef.png" alt="MEF" className="h-10 object-contain" />
-            <img src="/dncf.jpg" alt="DNCF" className="h-10 object-contain" />
+            <img src="/mef.png" alt="MEF" className="h-12 object-contain" />
+            <img src="/dncf.jpg" alt="DNCF" className="h-12 object-contain" />
           </div>
         </div>
 

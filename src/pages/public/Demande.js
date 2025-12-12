@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Alert, Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, IconButton } from '@mui/material';
+import { Box, Alert, Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, IconButton, Paper } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CheckIcon from '@mui/icons-material/Check';
 import { demandesService } from '../../services/demandesService';
@@ -12,8 +12,7 @@ import DemandeWizard from '../../components/wizard/DemandeWizard';
 import Step1InformationsPersonnelles from '../../components/wizard/steps/Step1InformationsPersonnelles';
 import Step2Famille from '../../components/wizard/steps/Step2Famille';
 import Step3DetailsDemande from '../../components/wizard/steps/Step3DetailsDemande';
-import Step4PiecesJustificatives from '../../components/wizard/steps/Step4PiecesJustificatives';
-import Step5Recapitulatif from '../../components/wizard/steps/Step5Recapitulatif';
+import Step4Recapitulatif from '../../components/wizard/steps/Step5Recapitulatif';
 import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
@@ -33,8 +32,6 @@ export default function Demande() {
     matricule: '',
     nom: '',
     prenom: '',
-    nomMariage: '',
-    adresseVille: '',
     sexe: '',
     email: '',
     photo: null,
@@ -43,21 +40,22 @@ export default function Demande() {
     enfants: [],
     motif: '',
     posteSouhaiteId: '',
-    localisationSouhaiteId: '',
+    localisationsSouhaitees: [],
     directionId: '',
     serviceId: '',
+    posteActuel: '',
   });
-  const [conjointForm, setConjointForm] = useState({ code: '', nom: '', prenom: '' });
-  const [enfantForm, setEnfantForm] = useState({ code: '', nom: '', prenom: '' });
+  const [conjointForm, setConjointForm] = useState({ nom: '', prenom: '' });
+  const [enfantForm, setEnfantForm] = useState({ nom: '', prenom: '' });
   const [postes, setPostes] = useState([]);
   const [localites, setLocalites] = useState([]);
   const [directions, setDirections] = useState([]);
   const [services, setServices] = useState([]);
-  const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [demandeId, setDemandeId] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [agentFound, setAgentFound] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -81,11 +79,6 @@ export default function Demande() {
     fetchData();
   }, []);
 
-  const handleFileChange = (e) => {
-    const selectedFiles = Array.from(e.target.files).slice(0, 4);
-    setFiles(selectedFiles);
-  };
-
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -105,10 +98,6 @@ export default function Demande() {
     }
   };
 
-  const handleRemoveFile = (index) => {
-    setFiles(files.filter((_, i) => i !== index));
-  };
-
   const handleAddConjoint = () => {
     if (conjointForm.nom && conjointForm.prenom) {
       if (formData.sexe === 'F' && formData.conjoints.length >= 1) {
@@ -119,7 +108,7 @@ export default function Demande() {
         ...prev,
         conjoints: [...prev.conjoints, { ...conjointForm }],
       }));
-      setConjointForm({ code: '', nom: '', prenom: '' });
+      setConjointForm({ nom: '', prenom: '' });
     }
   };
 
@@ -136,7 +125,7 @@ export default function Demande() {
         ...prev,
         enfants: [...prev.enfants, { ...enfantForm }],
       }));
-      setEnfantForm({ code: '', nom: '', prenom: '' });
+      setEnfantForm({ nom: '', prenom: '' });
     }
   };
 
@@ -151,6 +140,7 @@ export default function Demande() {
     switch (step) {
       case 0:
         return (
+          agentFound &&
           formData.matricule &&
           formData.nom &&
           formData.prenom &&
@@ -165,8 +155,6 @@ export default function Demande() {
         return formData.motif.trim().length > 0;
       case 3:
         return true;
-      case 4:
-        return true;
       default:
         return false;
     }
@@ -174,7 +162,7 @@ export default function Demande() {
 
   const handleNext = () => {
     if (validateStep(activeStep)) {
-      setActiveStep((prev) => Math.min(prev + 1, 4));
+      setActiveStep((prev) => Math.min(prev + 1, 3));
     } else {
       warning('Veuillez remplir tous les champs obligatoires avant de continuer');
     }
@@ -208,31 +196,15 @@ export default function Demande() {
         photoId = photoRes.fileId;
       }
 
-      const piecesJustificatives = [];
-      for (const file of files) {
-        if (file.size > 3145728) {
-          throw new Error(`Le fichier ${file.name} dépasse 3 Mo`);
-        }
-        const uploadRes = await uploadService.uploadFile(file, true);
-        piecesJustificatives.push({
-          nom: file.name,
-          type: file.type,
-          taille: file.size,
-          fichierId: uploadRes.fileId,
-        });
-      }
-
       const response = await demandesService.createPublic({
         motif: formData.motif,
         posteSouhaiteId: formData.posteSouhaiteId || undefined,
-        localisationSouhaiteId: formData.localisationSouhaiteId || undefined,
-        piecesJustificatives,
+        localisationsSouhaitees: formData.localisationsSouhaitees && formData.localisationsSouhaitees.length > 0 ? formData.localisationsSouhaitees : undefined,
+        piecesJustificatives: [],
         informationsAgent: {
           matricule: formData.matricule,
           nom: formData.nom,
           prenom: formData.prenom,
-          nomMariage: formData.nomMariage,
-          adresseVille: formData.adresseVille,
           sexe: formData.sexe,
           email: formData.email,
           directionId: formData.directionId,
@@ -279,6 +251,8 @@ export default function Demande() {
             directions={directions}
             services={services}
             onPhotoChange={handlePhotoChange}
+            onAgentFound={setAgentFound}
+            showOnlyMatricule={false}
           />
         );
       case 1:
@@ -307,17 +281,8 @@ export default function Demande() {
         );
       case 3:
         return (
-          <Step4PiecesJustificatives
-            files={files}
-            onFileChange={handleFileChange}
-            onRemoveFile={handleRemoveFile}
-          />
-        );
-      case 4:
-        return (
-          <Step5Recapitulatif
+          <Step4Recapitulatif
             formData={formData}
-            files={files}
             postes={postes}
             localites={localites}
             directions={directions}
@@ -338,17 +303,54 @@ export default function Demande() {
           </Alert>
         </Box>
       )}
-      <DemandeWizard
-        activeStep={activeStep}
-        onStepChange={setActiveStep}
-        onNext={handleNext}
-        onBack={handleBack}
-        onSubmit={handleSubmit}
-        loading={loading}
-        canProceed={validateStep(activeStep)}
-      >
-        {renderStepContent()}
-      </DemandeWizard>
+      <Box sx={{ maxWidth: 1200, mx: 'auto', py: 4 }}>
+        <Paper elevation={3} sx={{ p: 4, borderRadius: 2, mb: 3 }}>
+          <Box sx={{ mb: 4, textAlign: 'center' }}>
+            <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 700, color: 'primary.main' }}>
+              Demande de mutation
+            </Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+              Remplissez toutes les étapes pour soumettre votre demande
+            </Typography>
+            
+            {/* Champ Matricule */}
+            <Box sx={{ maxWidth: 600, mx: 'auto' }}>
+              <Step1InformationsPersonnelles
+                formData={formData}
+                setFormData={setFormData}
+                directions={directions}
+                services={services}
+                onPhotoChange={handlePhotoChange}
+                onAgentFound={setAgentFound}
+                showOnlyMatricule={true}
+              />
+            </Box>
+          </Box>
+        </Paper>
+
+        {/* Wizard - affiché uniquement si l'agent est trouvé */}
+        {agentFound ? (
+          <DemandeWizard
+            activeStep={activeStep}
+            onStepChange={setActiveStep}
+            onNext={handleNext}
+            onBack={handleBack}
+            onSubmit={handleSubmit}
+            loading={loading}
+            canProceed={validateStep(activeStep)}
+          >
+            {renderStepContent()}
+          </DemandeWizard>
+        ) : (
+          <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Typography variant="h6" color="text.secondary">
+                Veuillez rechercher votre matricule ci-dessus pour commencer votre demande de mutation.
+              </Typography>
+            </Box>
+          </Paper>
+        )}
+      </Box>
 
       {/* Dialog avec identifiant de la demande */}
       <Dialog open={!!demandeId} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
